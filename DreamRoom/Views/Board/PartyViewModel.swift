@@ -23,38 +23,101 @@ class PartyViewModel: ObservableObject {
     @Published var isGoldenHour: Bool = false
     @Published var isHost: Bool = false
     
-    private var timer: Timer?
+    private var cancellables = Set<AnyCancellable>()
+    private let socketService = SocketService.shared
+    private var partyId: String = "test-party-123"
+    private var userId: String = UUID().uuidString
     
     init() {
-        // Mock participants
+        setupSocketSubscriptions()
+        
+        // Mock initial state
         participants = [
             Participant(id: UUID(), name: "Blake", avatarUrl: nil, isBuilding: true),
-            Participant(id: UUID(), name: "Casey", avatarUrl: nil, isBuilding: true),
-            Participant(id: UUID(), name: "Jordan", avatarUrl: nil, isBuilding: false, isReady: true)
+            Participant(id: UUID(), name: "Casey", avatarUrl: nil, isBuilding: true)
         ]
         
-        // Check if Golden Hour should be active (mock)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
-            withAnimation {
-                self.isGoldenHour = true
+        socketService.connect()
+        socketService.joinParty(partyId: partyId, userId: userId, name: "Avery")
+    }
+    
+    private func setupSocketSubscriptions() {
+        socketService.participantJoined
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] participant in
+                self?.participants.append(participant)
             }
-            // Analytics
-            AnalyticsService.shared.track(.ritualReveal(partyId: UUID(), participantCount: self.participants.count))
-        }
+            .store(in: &cancellables)
+        
+        socketService.participantLeft
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] id in
+                self?.participants.removeAll { $0.id == id }
+            }
+            .store(in: &cancellables)
+            
+        socketService.buildingStateUpdated
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] update in
+                if let index = self?.participants.firstIndex(where: { $0.id == update.userId }) {
+                    self?.participants[index].isBuilding = update.isBuilding
+                }
+            }
+            .store(in: &cancellables)
+            
+        socketService.revealStarted
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] countdown in
+                self?.status = .revealCountdown
+                self?.countdown = countdown
+                self?.startInternalCountdown()
+            }
+            .store(in: &cancellables)
+            
+        socketService.revealTriggered
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] in
+                self?.status = .revealing
+            }
+            .store(in: &cancellables)
+            
+        socketService.goldenHourTriggered
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] active in
+                withAnimation {
+                    self?.isGoldenHour = active
+                }
+            }
+            .store(in: &cancellables)
     }
     
     func startReveal() {
-        guard isHost || true else { return } // Force true for demo
-        status = .revealCountdown
-        countdown = 10
-        
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+        socketService.triggerReveal(partyId: partyId)
+    }
+    
+    private func startInternalCountdown() {
+        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
             if self.countdown > 0 {
                 self.countdown -= 1
             } else {
-                self.timer?.invalidate()
-                self.status = .revealing
+                timer.invalidate()
             }
         }
     }
+    
+    func updateBuildingState(isBuilding: Bool) {
+        socketService.sendBuildingState(partyId: partyId, userId: userId, isBuilding: isBuilding)
+    }
 }
+/home/engine/.bashrc: line 1: syntax error near unexpected token `('
+/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
+/home/engine/.bashrc: line 1: syntax error near unexpected token `('
+/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
+/home/engine/.bashrc: line 1: syntax error near unexpected token `('
+/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
+/home/engine/.bashrc: line 1: syntax error near unexpected token `('
+/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
+/home/engine/.bashrc: line 1: syntax error near unexpected token `('
+/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
+/home/engine/.bashrc: line 1: syntax error near unexpected token `('
+/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'

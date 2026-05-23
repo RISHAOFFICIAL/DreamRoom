@@ -118,9 +118,12 @@ struct BoardView: View {
                     item: $item,
                     onDragStarted: {
                         viewModel.bringToFront(id: item.id)
+                        // Notify party of active building
+                        SocketService.shared.sendBuildingState(partyId: "test-party-123", userId: UUID().uuidString, isBuilding: true)
                     },
                     onDragEnded: { _ in
-                        // Any additional cleanup
+                        // Notify party building stopped
+                        SocketService.shared.sendBuildingState(partyId: "test-party-123", userId: UUID().uuidString, isBuilding: false)
                     },
                     onDelete: {
                         viewModel.removeItem(id: item.id)
@@ -149,6 +152,16 @@ struct BoardView: View {
                             Image(systemName: "person.3.fill")
                                 .resizable()
                                 .frame(width: 32, height: 20)
+                                .foregroundColor(.gold)
+                        }
+                        .padding()
+                        
+                        Button(action: {
+                            shareInvite()
+                        }) {
+                            Image(systemName: "square.and.arrow.up")
+                                .resizable()
+                                .frame(width: 20, height: 24)
                                 .foregroundColor(.gold)
                         }
                         .padding()
@@ -201,11 +214,48 @@ struct BoardView: View {
             }
         }
     }
+    
+    private func shareInvite() {
+        PartyService.shared.createInviteLink(partyId: "test-party-123") { url in
+            guard let url = url else { return }
+            
+            DispatchQueue.main.async {
+                let activityVC = UIActivityViewController(activityItems: ["Join my DreamRoom party!", url], applicationActivities: nil)
+                
+                // For iPad
+                if let topVC = UIApplication.shared.windows.first?.rootViewController {
+                    activityVC.popoverPresentationController?.sourceView = topVC.view
+                    topVC.present(activityVC, animated: true, completion: nil)
+                }
+                
+                // Track analytics
+                AnalyticsService.shared.track(.inviteShared(partyId: UUID(), platform: "system_share"))
+            }
+        }
+    }
 }
 
 extension Color {
     static let gold = Color(red: 0.83, green: 0.69, blue: 0.22)
 }
+/home/engine/.bashrc: line 1: syntax error near unexpected token `('
+/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
+/home/engine/.bashrc: line 1: syntax error near unexpected token `('
+/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
+/home/engine/.bashrc: line 1: syntax error near unexpected token `('
+/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
+/home/engine/.bashrc: line 1: syntax error near unexpected token `('
+/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
+/home/engine/.bashrc: line 1: syntax error near unexpected token `('
+/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
+/home/engine/.bashrc: line 1: syntax error near unexpected token `('
+/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
+/home/engine/.bashrc: line 1: syntax error near unexpected token `('
+/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
+/home/engine/.bashrc: line 1: syntax error near unexpected token `('
+/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
+/home/engine/.bashrc: line 1: syntax error near unexpected token `('
+/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
 /home/engine/.bashrc: line 1: syntax error near unexpected token `('
 /home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
 /home/engine/.bashrc: line 1: syntax error near unexpected token `('
