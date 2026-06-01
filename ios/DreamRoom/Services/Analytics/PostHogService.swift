@@ -57,13 +57,14 @@ class AnalyticsService {
 }
 
 enum DreamRoomEvent {
-    case partyCreated(hostId: UUID, isManualOverride: Bool)
-    case partyJoined(partyId: UUID, guestId: UUID, method: String)
-    case itemAdded(userId: UUID, type: String, source: String)
-    case inviteShared(partyId: UUID, platform: String)
-    case bigReveal(partyId: UUID, participantCount: Int)
+    case partyCreated(hostId: String, isManualOverride: Bool)
+    case partyJoined(partyId: String, guestId: String, method: String)
+    case itemAdded(userId: String, type: String, source: String)
+    case inviteShared(partyId: String, platform: String)
+    case bigReveal(partyId: String, participantCount: Int)
     case clippingCaptured(sourceUrl: String, method: String)
-    case kitPurchased(kitId: UUID, name: String)
+    case kitPurchased(kitId: String, name: String)
+    case subscriptionStarted(level: String)
     
     var name: String {
         switch self {
@@ -74,25 +75,28 @@ enum DreamRoomEvent {
         case .bigReveal: return "big_reveal_triggered"
         case .clippingCaptured: return "clipping_captured"
         case .kitPurchased: return "kit_purchased"
+        case .subscriptionStarted: return "subscription_started"
         }
     }
     
     var properties: [String: Any] {
         switch self {
         case .partyCreated(let hostId, let manual):
-            return ["host_id": hostId.uuidString, "is_manual_override": manual]
+            return ["host_id": hostId, "is_manual_override": manual]
         case .partyJoined(let partyId, let guestId, let method):
-            return ["party_id": partyId.uuidString, "guest_id": guestId.uuidString, "join_method": method]
+            return ["party_id": partyId, "guest_id": guestId, "join_method": method]
         case .itemAdded(let userId, let type, let source):
-            return ["user_id": userId.uuidString, "item_type": type, "source": source]
+            return ["user_id": userId, "item_type": type, "source": source]
         case .inviteShared(let partyId, let platform):
-            return ["party_id": partyId.uuidString, "platform": platform]
+            return ["party_id": partyId, "platform": platform]
         case .bigReveal(let partyId, let count):
-            return ["party_id": partyId.uuidString, "participant_count": count]
+            return ["party_id": partyId, "participant_count": count]
         case .clippingCaptured(let url, let method):
             return ["source_url": url, "method": method]
         case .kitPurchased(let kitId, let name):
-            return ["kit_id": kitId.uuidString, "kit_name": name]
+            return ["kit_id": kitId, "kit_name": name]
+        case .subscriptionStarted(let level):
+            return ["level": level]
         }
     }
 }

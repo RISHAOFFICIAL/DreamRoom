@@ -1,8 +1,9 @@
 import React from 'react';
 import type { Party } from '../types';
-import { Users, Layout, Zap, Flame, Crown, Sparkles } from 'lucide-react';
+import { Users, Layout, Zap, Flame, Crown, Sparkles, BarChart3 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { socket } from '../socket';
+import HostAnalytics from './HostAnalytics';
 
 interface Props {
   party: Party;
@@ -14,6 +15,7 @@ const PartyRoom: React.FC<Props> = ({ party, userName }) => {
   const isHost = me?.isHost;
 
   const [isBuilding, setIsBuilding] = React.useState(false);
+  const [showAnalytics, setShowAnalytics] = React.useState(false);
 
   React.useEffect(() => {
     // Only send if we are NOT the host (host is likely on iOS)
@@ -42,6 +44,15 @@ const PartyRoom: React.FC<Props> = ({ party, userName }) => {
           </h2>
         </div>
         <div className="flex items-center gap-6">
+          {isHost && (
+            <button 
+              onClick={() => setShowAnalytics(true)}
+              className="flex items-center gap-2 text-[#E8C97A]/60 hover:text-[#E8C97A] transition-colors text-sm uppercase tracking-widest font-bold"
+            >
+              <BarChart3 className="w-4 h-4" />
+              Insights
+            </button>
+          )}
           <div className="flex items-center gap-2 text-[#5E8FA7]">
             <Users className="w-5 h-5" />
             <span>{party.participants.length} Present</span>
@@ -195,6 +206,21 @@ const PartyRoom: React.FC<Props> = ({ party, userName }) => {
           </div>
         </div>
       </main>
+
+      <AnimatePresence>
+        {showAnalytics && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <HostAnalytics 
+              party={party} 
+              onClose={() => setShowAnalytics(false)} 
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
