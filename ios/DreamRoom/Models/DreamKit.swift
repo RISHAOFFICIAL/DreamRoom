@@ -1,7 +1,7 @@
 import Foundation
 
 struct DreamKit: Identifiable, Codable {
-    let id: UUID
+    let id: String
     let name: String
     let description: String
     let price: String
@@ -9,7 +9,7 @@ struct DreamKit: Identifiable, Codable {
     let assets: [String] // Asset names or URLs
     var isPurchased: Bool
     
-    init(id: UUID = UUID(), name: String, description: String, price: String, coverImageName: String, assets: [String], isPurchased: Bool = false) {
+    init(id: String, name: String, description: String, price: String, coverImageName: String, assets: [String], isPurchased: Bool = false) {
         self.id = id
         self.name = name
         self.description = description

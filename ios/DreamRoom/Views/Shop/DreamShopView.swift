@@ -3,7 +3,7 @@ import SwiftUI
 struct DreamShopView: View {
     @StateObject var kitService = DreamKitService.shared
     @Environment(\.presentationMode) var presentationMode
-    @State private var selectedKit: DreamKit?
+    @State private var previewingKit: DreamKit?
     @State private var showingPurchaseSuccess = false
     
     var body: some View {
@@ -40,7 +40,7 @@ struct DreamShopView: View {
                         
                         ForEach(kitService.availableKits) { kit in
                             KitCard(kit: kit) {
-                                selectedKit = kit
+                                previewingKit = kit
                             }
                         }
                     }
@@ -48,6 +48,17 @@ struct DreamShopView: View {
                 }
             }
             
+            if let kit = previewingKit {
+                KitPreviewView(kit: kit, isPresented: Binding(
+                    get: { previewingKit != nil },
+                    set: { if !$0 { previewingKit = nil } }
+                ), onPurchase: {
+                    selectedKit = kit
+                    previewingKit = nil
+                })
+                .transition(.move(edge: .bottom))
+            }
+
             if let kit = selectedKit {
                 PurchaseModal(kit: kit, isPresented: Binding(
                     get: { selectedKit != nil },
@@ -93,11 +104,22 @@ struct KitCard: View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 12) {
                 ZStack(alignment: .bottomTrailing) {
-                    // Placeholder for kit cover image
-                    Rectangle()
-                        .fill(LinearGradient(gradient: Gradient(colors: [.gray.opacity(0.3), .black.opacity(0.6)]), startPoint: .top, endPoint: .bottom))
-                        .aspectRatio(16/9, contentMode: .fit)
-                        .cornerRadius(12)
+                    // Kit cover image or high-fidelity placeholder
+                    ZStack {
+                        Rectangle()
+                            .fill(LinearGradient(gradient: Gradient(colors: [Color(red: 0.15, green: 0.15, blue: 0.2), .black]), startPoint: .top, endPoint: .bottom))
+                        
+                        VStack {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 40))
+                                .foregroundColor(.gold.opacity(0.4))
+                            Text(kit.coverImageName)
+                                .font(.caption2)
+                                .foregroundColor(.gold.opacity(0.3))
+                        }
+                    }
+                    .aspectRatio(16/9, contentMode: .fit)
+                    .cornerRadius(12)
                     
                     if kit.isPurchased {
                         Text("UNLOCKED")
@@ -180,6 +202,138 @@ struct PurchaseModal: View {
             .cornerRadius(24)
             .padding(24)
             .shadow(color: .gold.opacity(0.2), radius: 20)
+        }
+    }
+}
+
+struct KitPreviewView: View {
+    let kit: DreamKit
+    @Binding var isPresented: Bool
+    let onPurchase: () -> Void
+    @State private var currentAssetIndex = 0
+    
+    var body: some View {
+        ZStack {
+            Color.black.edgesIgnoringSafeArea(.all)
+            
+            VStack(spacing: 0) {
+                // Asset Carousel
+                TabView(selection: $currentAssetIndex) {
+                    ForEach(0..<kit.assets.count, id: \.self) { index in
+                        ZStack {
+                            Rectangle()
+                                .fill(LinearGradient(gradient: Gradient(colors: [Color(red: 0.1, green: 0.1, blue: 0.12), .black]), startPoint: .top, endPoint: .bottom))
+                            
+                            VStack {
+                                Spacer()
+                                if kit.assets[index].hasSuffix(".m4a") {
+                                    VStack(spacing: 20) {
+                                        Image(systemName: "waveform")
+                                            .font(.system(size: 80))
+                                            .foregroundColor(.gold)
+                                        Text("Soundscape Preview")
+                                            .font(.custom("CormorantGaramond-Bold", size: 24))
+                                            .foregroundColor(.white)
+                                        Text(kit.assets[index].replacingOccurrences(of: ".m4a", with: ""))
+                                            .font(.custom("CormorantGaramond-Italic", size: 18))
+                                            .foregroundColor(.secondary)
+                                        
+                                        Button(action: { /* Play sound mock */ }) {
+                                            HStack {
+                                                Image(systemName: "play.fill")
+                                                Text("Listen")
+                                            }
+                                            .padding()
+                                            .background(Color.gold.opacity(0.2))
+                                            .cornerRadius(30)
+                                            .foregroundColor(.gold)
+                                        }
+                                    }
+                                } else {
+                                    VStack {
+                                        Image(systemName: "photo")
+                                            .font(.system(size: 60))
+                                            .foregroundColor(.gold.opacity(0.3))
+                                        Text("Preview: \(kit.assets[index])")
+                                            .font(.custom("CormorantGaramond-MediumItalic", size: 18))
+                                            .foregroundColor(.gold.opacity(0.6))
+                                    }
+                                }
+                                Spacer()
+                            }
+                        }
+                        .tag(index)
+                    }
+                }
+                .tabViewStyle(PageTabViewStyle())
+                .frame(maxHeight: .infinity)
+                
+                // Bottom Info
+                VStack(spacing: 20) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(kit.name)
+                                .font(.custom("CormorantGaramond-Bold", size: 32))
+                                .foregroundColor(.white)
+                            Text("Asset \(currentAssetIndex + 1) of \(kit.assets.count)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        Text(kit.price)
+                            .font(.system(size: 24, weight: .light))
+                            .foregroundColor(.gold)
+                    }
+                    .padding(.horizontal)
+                    
+                    Text(kit.description)
+                        .font(.custom("CormorantGaramond-Regular", size: 18))
+                        .foregroundColor(.white.opacity(0.8))
+                        .padding(.horizontal)
+                    
+                    HStack(spacing: 16) {
+                        Button(action: { isPresented = false }) {
+                            Text("Close")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(.white)
+                                .padding()
+                                .frame(maxWidth: .infinity)
+                                .background(Color.white.opacity(0.1))
+                                .cornerRadius(12)
+                        }
+                        
+                        Button(action: onPurchase) {
+                            Text(kit.isPurchased ? "Unlocked" : "Purchase Kit")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(.black)
+                                .padding()
+                                .frame(maxWidth: .infinity)
+                                .background(Color.gold)
+                                .cornerRadius(12)
+                        }
+                        .disabled(kit.isPurchased)
+                    }
+                    .padding()
+                }
+                .padding(.vertical, 30)
+                .background(
+                    LinearGradient(gradient: Gradient(colors: [.black, Color(red: 0.05, green: 0.05, blue: 0.08)]), startPoint: .top, endPoint: .bottom)
+                )
+            }
+            
+            // Dismiss button top right
+            VStack {
+                HStack {
+                    Spacer()
+                    Button(action: { isPresented = false }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 30))
+                            .foregroundColor(.white.opacity(0.5))
+                            .padding()
+                    }
+                }
+                Spacer()
+            }
         }
     }
 }

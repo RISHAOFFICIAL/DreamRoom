@@ -146,9 +146,13 @@ struct PartyRoomView: View {
             }
             
             if viewModel.status == .revealing {
-                RevealView(isPresented: .constant(true)) {
-                    viewModel.status = .completed
-                }
+                RevealSequenceView(
+                    participantsCount: viewModel.participants.count,
+                    userName: "Avery",
+                    onComplete: {
+                        viewModel.status = .completed
+                    }
+                )
             }
         }
     }
