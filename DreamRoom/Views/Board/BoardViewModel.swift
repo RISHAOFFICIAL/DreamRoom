@@ -3,6 +3,8 @@ import SwiftUI
 import Combine
 
 class BoardViewModel: ObservableObject {
+    static let shared = BoardViewModel()
+    
     @Published var items: [BoardItem] = []
     @Published var isViewMode: Bool = false
     @Published var settings: BoardSettings = BoardSettings()
@@ -55,9 +57,3 @@ class BoardViewModel: ObservableObject {
         items.removeAll(where: { $0.id == id })
     }
 }
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'

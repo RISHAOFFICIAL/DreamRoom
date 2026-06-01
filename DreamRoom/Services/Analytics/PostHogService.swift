@@ -61,8 +61,9 @@ enum DreamRoomEvent {
     case partyJoined(partyId: UUID, guestId: UUID, method: String)
     case itemAdded(userId: UUID, type: String, source: String)
     case inviteShared(partyId: UUID, platform: String)
-    case ritualReveal(partyId: UUID, participantCount: Int)
+    case bigReveal(partyId: UUID, participantCount: Int)
     case clippingCaptured(sourceUrl: String, method: String)
+    case kitPurchased(kitId: UUID, name: String)
     
     var name: String {
         switch self {
@@ -70,8 +71,9 @@ enum DreamRoomEvent {
         case .partyJoined: return "party_joined"
         case .itemAdded: return "item_added_to_board"
         case .inviteShared: return "invite_shared"
-        case .ritualReveal: return "ritual_reveal_triggered"
+        case .bigReveal: return "big_reveal_triggered"
         case .clippingCaptured: return "clipping_captured"
+        case .kitPurchased: return "kit_purchased"
         }
     }
     
@@ -85,10 +87,12 @@ enum DreamRoomEvent {
             return ["user_id": userId.uuidString, "item_type": type, "source": source]
         case .inviteShared(let partyId, let platform):
             return ["party_id": partyId.uuidString, "platform": platform]
-        case .ritualReveal(let partyId, let count):
+        case .bigReveal(let partyId, let count):
             return ["party_id": partyId.uuidString, "participant_count": count]
         case .clippingCaptured(let url, let method):
             return ["source_url": url, "method": method]
+        case .kitPurchased(let kitId, let name):
+            return ["kit_id": kitId.uuidString, "kit_name": name]
         }
     }
 }

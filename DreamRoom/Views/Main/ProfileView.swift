@@ -43,20 +43,36 @@ struct ProfileView: View {
                 
                 Spacer()
                 
-                Button(action: {
-                    withAnimation {
-                        isEditing.toggle()
-                    }
-                }) {
-                    Text(isEditing ? "Save Profile" : "Edit Profile")
-                        .font(.headline)
-                        .foregroundColor(.white)
+                VStack(spacing: 12) {
+                    NavigationLink(destination: DreamShopView()) {
+                        HStack {
+                            Image(systemName: "sparkles")
+                            Text("Dream Shop")
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                        }
                         .padding()
-                        .frame(maxWidth: .infinity)
-                        .background(Color.gold)
+                        .background(Color.gold.opacity(0.1))
                         .cornerRadius(12)
+                        .foregroundColor(.gold)
+                    }
+                    .padding(.horizontal)
+                    
+                    Button(action: {
+                        withAnimation {
+                            isEditing.toggle()
+                        }
+                    }) {
+                        Text(isEditing ? "Save Profile" : "Edit Profile")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .padding()
+                            .frame(maxWidth: .infinity)
+                            .background(Color.gold)
+                            .cornerRadius(12)
+                    }
+                    .padding()
                 }
-                .padding()
             }
             .navigationTitle("Your Soul")
             .background(Color(.systemBackground).edgesIgnoringSafeArea(.all))

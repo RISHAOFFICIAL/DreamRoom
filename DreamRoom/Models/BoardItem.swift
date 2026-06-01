@@ -1,7 +1,7 @@
 import Foundation
 import SwiftUI
 
-struct BoardItem: Identifiable, Codable {
+struct BoardItem: Identifiable, Codable, Equatable {
     let id: UUID
     var imageUrl: String?
     var text: String?
@@ -12,6 +12,15 @@ struct BoardItem: Identifiable, Codable {
     
     // For tactile interaction states
     var zIndex: Double = 0
+    
+    static func == (lhs: BoardItem, rhs: BoardItem) -> Bool {
+        lhs.id == rhs.id &&
+        lhs.imageUrl == rhs.imageUrl &&
+        lhs.text == rhs.text &&
+        lhs.position == rhs.position &&
+        lhs.rotation == rhs.rotation &&
+        lhs.scale == rhs.scale
+    }
     
     init(id: UUID = UUID(), imageUrl: String? = nil, text: String? = nil, position: CGPoint = .zero, rotation: Angle = .zero, scale: CGFloat = 1.0) {
         self.id = id

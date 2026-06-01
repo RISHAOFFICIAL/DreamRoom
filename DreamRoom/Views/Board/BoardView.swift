@@ -18,13 +18,42 @@ struct BoardItemView: View {
     var body: some View {
         ZStack {
             if let imageUrl = item.imageUrl {
-                // Placeholder for actual image loading
-                Image(systemName: "photo")
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
+                if imageUrl.hasPrefix("http") {
+                    AsyncImage(url: URL(string: imageUrl)) { image in
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                    } placeholder: {
+                        ProgressView()
+                            .frame(width: 200, height: 200)
+                            .background(Color.gray.opacity(0.3))
+                    }
                     .frame(width: 200, height: 200)
-                    .background(Color.gray.opacity(0.3))
                     .cornerRadius(12)
+                } else {
+                    // Dream Kit Premium Asset (Mock representation)
+                    ZStack {
+                        Rectangle()
+                            .fill(LinearGradient(gradient: Gradient(colors: [.gold.opacity(0.5), .black.opacity(0.3)]), startPoint: .topLeading, endPoint: .bottomTrailing))
+                        
+                        VStack {
+                            Image(systemName: "sparkles")
+                                .font(.title)
+                                .foregroundColor(.gold)
+                            Text(imageUrl)
+                                .font(.custom("CormorantGaramond-Bold", size: 16))
+                                .foregroundColor(.white)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal)
+                        }
+                    }
+                    .frame(width: 200, height: 200)
+                    .cornerRadius(12)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.gold.opacity(0.5), lineWidth: 1)
+                    )
+                }
             } else if let text = item.text {
                 Text(text)
                     .font(.custom("CormorantGaramond-Medium", size: 24))
@@ -34,16 +63,19 @@ struct BoardItemView: View {
                     .shadow(radius: 2)
             }
         }
-        .scaleEffect(item.scale * currentScale * (isDragging ? 1.05 : 1.0))
+        .scaleEffect(item.scale * currentScale * (isDragging ? 1.15 : 1.0))
         .rotationEffect(item.rotation + currentRotation + flickRotation)
         .offset(x: item.position.x + dragOffset.width, y: item.position.y + dragOffset.height)
-        .shadow(color: Color.black.opacity(isDragging ? 0.3 : 0.1), radius: isDragging ? 15 : 5, x: 0, y: isDragging ? 10 : 2)
+        .shadow(color: Color.black.opacity(isDragging ? 0.4 : 0.1), radius: isDragging ? 20 : 5, x: 0, y: isDragging ? 15 : 2)
         .gesture(
             DragGesture()
                 .onChanged { value in
                     if !isDragging {
-                        isDragging = true
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            isDragging = true
+                        }
                         onDragStarted()
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
                     }
                     dragOffset = value.translation
                 }
@@ -55,21 +87,26 @@ struct BoardItemView: View {
                     
                     // Check for flick velocity to delete
                     let velocity = value.predictedEndTranslation
-                    if abs(velocity.width) > 500 || abs(velocity.height) > 500 {
-                        withAnimation(.easeOut(duration: 0.5)) {
-                            flickRotation = Angle(degrees: Double.random(in: 180...360))
-                            dragOffset = CGSize(width: velocity.width * 2, height: velocity.height * 2)
+                    let magnitude = sqrt(pow(velocity.width, 2) + pow(velocity.height, 2))
+                    
+                    if magnitude > 1000 {
+                        UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+                        withAnimation(.interpolatingSpring(stiffness: 50, damping: 10)) {
+                            flickRotation = Angle(degrees: Double.random(in: 720...1440))
+                            dragOffset = CGSize(width: velocity.width * 3, height: velocity.height * 3)
                         }
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                             onDelete()
                         }
                     } else {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.6)) {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.65, blendDuration: 0)) {
                             item.position = finalPosition
                             dragOffset = .zero
                             isDragging = false
                         }
                         onDragEnded(finalPosition)
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        SoundService.shared.play(name: "soft-settle", randomizePitch: true)
                     }
                 }
         )
@@ -97,9 +134,12 @@ struct BoardItemView: View {
 }
 
 struct BoardView: View {
-    @StateObject var viewModel = BoardViewModel()
+    @StateObject var viewModel = BoardViewModel.shared
     @State private var showingSettings = false
     @State private var showingPartyRoom = false
+    @State private var showingShop = false
+    @State private var showingScanner = false
+    @State private var activePartyId = "test-party-123"
     
     var body: some View {
         ZStack {
@@ -147,11 +187,31 @@ struct BoardView: View {
                         .padding()
                         
                         Button(action: {
+                            showingShop = true
+                        }) {
+                            Image(systemName: "sparkles")
+                                .resizable()
+                                .frame(width: 24, height: 24)
+                                .foregroundColor(.gold)
+                        }
+                        .padding()
+                        
+                        Button(action: {
                             showingPartyRoom = true
                         }) {
                             Image(systemName: "person.3.fill")
                                 .resizable()
                                 .frame(width: 32, height: 20)
+                                .foregroundColor(.gold)
+                        }
+                        .padding()
+                        
+                        Button(action: {
+                            showingScanner = true
+                        }) {
+                            Image(systemName: "qrcode.viewfinder")
+                                .resizable()
+                                .frame(width: 32, height: 32)
                                 .foregroundColor(.gold)
                         }
                         .padding()
@@ -188,7 +248,18 @@ struct BoardView: View {
             }
         }
         .fullScreenCover(isPresented: $showingPartyRoom) {
-            PartyRoomView()
+            PartyRoomView(partyId: activePartyId)
+        }
+        .fullScreenCover(isPresented: $showingShop) {
+            DreamShopView()
+        }
+        .sheet(isPresented: $showingScanner) {
+            QRCodeScannerView(onScan: { code in
+                showingScanner = false
+                handleScan(code: code)
+            }, onDismiss: {
+                showingScanner = false
+            })
         }
         .sheet(isPresented: $showingSettings) {
             NavigationView {
@@ -216,7 +287,7 @@ struct BoardView: View {
     }
     
     private func shareInvite() {
-        PartyService.shared.createInviteLink(partyId: "test-party-123") { url in
+        PartyService.shared.createInviteLink(partyId: activePartyId) { url in
             guard let url = url else { return }
             
             DispatchQueue.main.async {
@@ -233,68 +304,29 @@ struct BoardView: View {
             }
         }
     }
+    
+    private func handleScan(code: String) {
+        if let url = URL(string: code),
+           url.host == "dreamroom.app",
+           url.pathComponents.contains("join"),
+           let partyId = url.pathComponents.last {
+            
+            activePartyId = partyId
+            showingPartyRoom = true
+            
+            // Track analytics
+            AnalyticsService.shared.track(.partyJoined(partyId: UUID(), guestId: UUID(), method: "qr_scan"))
+        } else {
+            // Fallback for simple party IDs
+            activePartyId = code
+            showingPartyRoom = true
+            
+            // Track analytics
+            AnalyticsService.shared.track(.partyJoined(partyId: UUID(), guestId: UUID(), method: "manual_entry"))
+        }
+    }
 }
 
 extension Color {
-    static let gold = Color(red: 0.83, green: 0.69, blue: 0.22)
+    static let gold = Color(red: 0.91, green: 0.79, blue: 0.48)
 }
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'

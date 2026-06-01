@@ -2,11 +2,11 @@ import Foundation
 import SwiftUI
 
 struct Participant: Identifiable, Codable {
-    let id: UUID
+    let id: String
     var name: String
-    var avatarUrl: String?
+    var isHost: Bool
+    var ssid: String?
     var isBuilding: Bool = false
-    var isReady: Bool = false
 }
 
 enum PartyStatus: String, Codable {
@@ -25,10 +25,11 @@ class PartyViewModel: ObservableObject {
     
     private var cancellables = Set<AnyCancellable>()
     private let socketService = SocketService.shared
-    private var partyId: String = "test-party-123"
+    private var partyId: String
     private var userId: String = UUID().uuidString
     
-    init() {
+    init(partyId: String = "test-party-123") {
+        self.partyId = partyId
         setupSocketSubscriptions()
         
         // Mock initial state
@@ -38,7 +39,20 @@ class PartyViewModel: ObservableObject {
         ]
         
         socketService.connect()
-        socketService.joinParty(partyId: partyId, userId: userId, name: "Avery")
+        
+        // Fetch SSID and then join
+        WiFiService.shared.fetchCurrentSSID()
+        
+        // In a real app, we would wait for the SSID to be fetched or observe it
+        // For now, we'll just join after a short delay or with the initial value
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            self.socketService.joinParty(
+                partyId: self.partyId,
+                userId: self.userId,
+                name: "Avery",
+                ssid: WiFiService.shared.currentSSID
+            )
+        }
     }
     
     private func setupSocketSubscriptions() {
@@ -84,6 +98,9 @@ class PartyViewModel: ObservableObject {
         socketService.goldenHourTriggered
             .receive(on: DispatchQueue.main)
             .sink { [weak self] active in
+                if active && !(self?.isGoldenHour ?? true) {
+                    SoundService.shared.play(name: "golden-hour-transition")
+                }
                 withAnimation {
                     self?.isGoldenHour = active
                 }
@@ -93,6 +110,16 @@ class PartyViewModel: ObservableObject {
     
     func startReveal() {
         socketService.triggerReveal(partyId: partyId)
+    }
+    
+    func toggleGoldenHour() {
+        // Toggle locally and notify socket
+        isGoldenHour.toggle()
+        socketService.sendGoldenHourToggle(partyId: partyId, enabled: isGoldenHour)
+        
+        if isGoldenHour {
+            SoundService.shared.play(name: "golden-hour-transition")
+        }
     }
     
     private func startInternalCountdown() {
@@ -109,15 +136,3 @@ class PartyViewModel: ObservableObject {
         socketService.sendBuildingState(partyId: partyId, userId: userId, isBuilding: isBuilding)
     }
 }
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'

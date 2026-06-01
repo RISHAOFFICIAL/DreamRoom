@@ -31,6 +31,12 @@ struct ClippingFolderView: View {
                         ForEach(clippingService.clips) { clip in
                             VStack {
                                 ClipThumbnailView(clip: clip)
+                                    .onTapGesture {
+                                        BoardViewModel.shared.addItem(imageUrl: clip.imageUrl)
+                                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                        SoundService.shared.play(name: "soft-settle", randomizePitch: true)
+                                    }
+                                
                                 if let source = clip.sourceUrl {
                                     Text(source.host ?? "Unknown")
                                         .font(.caption2)
@@ -59,23 +65,28 @@ struct ClipThumbnailView: View {
     let clip: Clip
     
     var body: some View {
-        AsyncImage(url: clip.imageUrl) { image in
-            image
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-                .frame(width: 100, height: 100)
-                .clipped()
-                .cornerRadius(8)
-        } placeholder: {
-            Color.gray.opacity(0.1)
-                .frame(width: 100, height: 100)
-                .cornerRadius(8)
+        Group {
+            if clip.imageUrl.hasPrefix("http") {
+                AsyncImage(url: URL(string: clip.imageUrl)) { image in
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                } placeholder: {
+                    ProgressView()
+                }
+            } else {
+                // Dream Kit Asset
+                ZStack {
+                    Rectangle()
+                        .fill(LinearGradient(gradient: Gradient(colors: [.gold.opacity(0.3), .gold.opacity(0.1)]), startPoint: .topLeading, endPoint: .bottomTrailing))
+                    
+                    Image(systemName: "sparkles")
+                        .foregroundColor(.gold)
+                }
+            }
         }
+        .frame(width: 100, height: 100)
+        .clipped()
+        .cornerRadius(8)
     }
 }
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
-/home/engine/.bashrc: line 1: syntax error near unexpected token `('
-/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'

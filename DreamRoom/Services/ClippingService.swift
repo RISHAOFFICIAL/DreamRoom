@@ -12,7 +12,7 @@ class ClippingService: ObservableObject {
         loadClips()
     }
     
-    func addClip(imageUrl: URL, sourceUrl: URL? = nil) {
+    func addClip(imageUrl: String, sourceUrl: URL? = nil) {
         let newClip = Clip(imageUrl: imageUrl, sourceUrl: sourceUrl)
         clips.insert(newClip, at: 0)
         saveClips()
