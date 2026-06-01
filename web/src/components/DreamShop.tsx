@@ -7,7 +7,7 @@ const SHOP_KITS = [
     name: 'The Sanctuary Pack',
     description: 'Cinematic soundscapes and luxury botanical assets for deep focus.',
     price: '$4.99',
-    cover: 'https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?auto=format&fit=crop&w=800&q=80',
+    cover: '/assets/sanctuary/cover.png',
     assets: ['Misty Mountain BG', 'Golden Fern', 'Raw Linen Texture', 'Zen Forest Audio']
   },
   {
