@@ -1,5 +1,4 @@
 import { Server } from 'socket.io';
-import type { Socket } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
 import type { 
   ClientToServerEvents, 
@@ -10,26 +9,53 @@ import type {
   User
 } from './types.js';
 import { trackEvent } from './analytics.js';
+import redisClient from './redisClient.js';
+import { archiveBoard } from './db.js';
 
-export const parties = new Map<string, Party>();
+const PARTY_PREFIX = 'party:';
+
+export const getParty = async (partyId: string): Promise<Party | null> => {
+  const data = await redisClient.get(`${PARTY_PREFIX}${partyId}`);
+  return data ? JSON.parse(data) : null;
+};
+
+export const saveParty = async (party: Party): Promise<void> => {
+  await redisClient.set(`${PARTY_PREFIX}${party.id}`, JSON.stringify(party), {
+    EX: 86400 // Expire after 24 hours
+  });
+};
+
+export const getAllParties = async (): Promise<Party[]> => {
+  const keys = await redisClient.keys(`${PARTY_PREFIX}*`);
+  if (keys.length === 0) return [];
+  const data = await redisClient.mGet(keys);
+  return data.map(d => JSON.parse(d!));
+};
 
 const checkGoldenHour = (party: Party): boolean => {
   const ssidCounts: Record<string, number> = {};
+  const ipGroupCounts: Record<string, number> = {};
   
   party.participants.forEach(user => {
     if (user.ssid) {
       ssidCounts[user.ssid] = (ssidCounts[user.ssid] || 0) + 1;
     }
+    if (user.ipGroup) {
+      ipGroupCounts[user.ipGroup] = (ipGroupCounts[user.ipGroup] || 0) + 1;
+    }
   });
 
-  return Object.values(ssidCounts).some(count => count >= 3);
+  const hasThreeSameSsid = Object.values(ssidCounts).some(count => count >= 3);
+  const hasThreeSameIpGroup = Object.values(ipGroupCounts).some(count => count >= 3);
+
+  return hasThreeSameSsid || hasThreeSameIpGroup;
 };
 
 export const setupSocket = (io: Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>) => {
   io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
 
-    socket.on('createParty', (hostName, ssid) => {
+    socket.on('createParty', async (hostName, ssid) => {
       const partyId = uuidv4().substring(0, 8).toUpperCase();
       const hostId = uuidv4();
       
@@ -37,7 +63,8 @@ export const setupSocket = (io: Server<ClientToServerEvents, ServerToClientEvent
         id: hostId,
         name: hostName,
         isHost: true,
-        ssid
+        ssid,
+        ipGroup: socket.handshake.address
       };
 
       const newParty: Party = {
@@ -45,15 +72,17 @@ export const setupSocket = (io: Server<ClientToServerEvents, ServerToClientEvent
         hostId,
         status: 'building',
         participants: [host],
+        items: [],
         createdAt: Date.now(),
         isGoldenHour: false
       };
 
-      parties.set(partyId, newParty);
+      await saveParty(newParty);
       socket.data.userId = hostId;
       socket.data.partyId = partyId;
       socket.join(partyId);
       
+      socket.emit('joined', { userId: hostId, partyId });
       socket.emit('partyUpdated', newParty);
       
       trackEvent(hostId, 'party_created', {
@@ -65,8 +94,8 @@ export const setupSocket = (io: Server<ClientToServerEvents, ServerToClientEvent
       console.log(`Party created: ${partyId} by ${hostName}`);
     });
 
-    socket.on('joinParty', (partyId, userName, ssid) => {
-      const party = parties.get(partyId);
+    socket.on('joinParty', async (partyId, userName, ssid) => {
+      const party = await getParty(partyId);
       
       if (!party) {
         socket.emit('error', 'Party not found');
@@ -78,7 +107,8 @@ export const setupSocket = (io: Server<ClientToServerEvents, ServerToClientEvent
         id: userId,
         name: userName,
         isHost: false,
-        ssid
+        ssid,
+        ipGroup: socket.handshake.address
       };
 
       party.participants.push(newUser);
@@ -86,9 +116,14 @@ export const setupSocket = (io: Server<ClientToServerEvents, ServerToClientEvent
       socket.data.partyId = partyId;
       socket.join(partyId);
 
+      socket.emit('joined', { userId, partyId });
+      
       const wasGoldenHour = party.isGoldenHour;
-      party.isGoldenHour = checkGoldenHour(party);
+      if (!party.isManualGoldenHour) {
+        party.isGoldenHour = checkGoldenHour(party);
+      }
 
+      await saveParty(party);
       io.to(partyId).emit('partyUpdated', party);
 
       if (!wasGoldenHour && party.isGoldenHour) {
@@ -108,8 +143,8 @@ export const setupSocket = (io: Server<ClientToServerEvents, ServerToClientEvent
       console.log(`User ${userName} joined party: ${partyId}`);
     });
 
-    socket.on('triggerReveal', (partyId) => {
-      const party = parties.get(partyId);
+    socket.on('triggerReveal', async (partyId) => {
+      const party = await getParty(partyId);
       
       if (!party) {
         socket.emit('error', 'Party not found');
@@ -117,6 +152,7 @@ export const setupSocket = (io: Server<ClientToServerEvents, ServerToClientEvent
       }
 
       party.status = 'reveal';
+      await saveParty(party);
       io.to(partyId).emit('partyUpdated', party);
       io.to(partyId).emit('goldenRevealTriggered', partyId);
 
@@ -128,19 +164,18 @@ export const setupSocket = (io: Server<ClientToServerEvents, ServerToClientEvent
       console.log(`Reveal triggered for party: ${partyId}`);
     });
 
-    socket.on('toggleGoldenHour', (partyId, enabled) => {
-      const party = parties.get(partyId);
+    socket.on('toggleGoldenHour', async (partyId, enabled) => {
+      const party = await getParty(partyId);
       if (!party) {
         socket.emit('error', 'Party not found');
         return;
       }
 
-      // Check if the requester is the host (optional but recommended)
-      // For now, let's assume any trigger is valid for the MVP override
-      
       const wasGoldenHour = party.isGoldenHour;
       party.isGoldenHour = enabled;
-
+      party.isManualGoldenHour = true; // Mark that manual override is active
+      
+      await saveParty(party);
       io.to(partyId).emit('partyUpdated', party);
       
       if (wasGoldenHour !== enabled) {
@@ -153,20 +188,55 @@ export const setupSocket = (io: Server<ClientToServerEvents, ServerToClientEvent
       }
     });
 
-    socket.on('updateBuildingState', (partyId, isBuilding) => {
-      const party = parties.get(partyId);
+    socket.on('updateBuildingState', async (partyId, isBuilding) => {
+      const party = await getParty(partyId);
       if (!party) return;
 
       const user = party.participants.find(u => u.id === socket.data.userId);
       if (user) {
         user.isBuilding = isBuilding;
+        await saveParty(party);
         io.to(partyId).emit('partyUpdated', party);
       }
     });
 
-    socket.on('disconnect', () => {
+    socket.on('finishParty', async (partyId) => {
+      const party = await getParty(partyId);
+      if (!party) return;
+
+      party.status = 'finished';
+      await saveParty(party);
+      await archiveBoard(party);
+      
+      io.to(partyId).emit('partyUpdated', party);
+      console.log(`Party ${partyId} finished and archived.`);
+    });
+
+    socket.on('disconnect', async () => {
       console.log('User disconnected:', socket.id);
-      // Optional: Cleanup SSID counts if necessary
+      const { userId, partyId } = socket.data;
+      if (userId && partyId) {
+        const party = await getParty(partyId);
+        if (party) {
+          const originalCount = party.participants.length;
+          party.participants = party.participants.filter(p => p.id !== userId);
+          
+          if (party.participants.length !== originalCount) {
+            // Re-check Golden Hour if it wasn't manually overridden
+            const wasGoldenHour = party.isGoldenHour;
+            if (!party.isManualGoldenHour) {
+              party.isGoldenHour = checkGoldenHour(party);
+            }
+            
+            await saveParty(party);
+            io.to(partyId).emit('partyUpdated', party);
+            
+            if (wasGoldenHour && !party.isGoldenHour) {
+              io.to(partyId).emit('goldenHourToggled', false);
+            }
+          }
+        }
+      }
     });
   });
 };

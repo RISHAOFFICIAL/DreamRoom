@@ -4,6 +4,17 @@ export interface User {
   isHost: boolean;
   isBuilding?: boolean;
   ssid?: string;
+  ipGroup?: string;
+}
+
+export interface BoardItem {
+  id: string;
+  url: string;
+  x: number;
+  y: number;
+  rotation: number;
+  scale: number;
+  addedBy: string;
 }
 
 export interface Party {
@@ -11,12 +22,15 @@ export interface Party {
   hostId: string;
   status: 'building' | 'reveal' | 'finished';
   participants: User[];
+  items: BoardItem[];
   createdAt: number;
   isGoldenHour: boolean;
+  isManualGoldenHour?: boolean;
 }
 
 export interface ServerToClientEvents {
   partyUpdated: (party: Party) => void;
+  joined: (data: { userId: string; partyId: string }) => void;
   goldenRevealTriggered: (partyId: string) => void;
   goldenHourToggled: (enabled: boolean) => void;
   error: (message: string) => void;
@@ -28,6 +42,7 @@ export interface ClientToServerEvents {
   triggerReveal: (partyId: string) => void;
   toggleGoldenHour: (partyId: string, enabled: boolean) => void;
   updateBuildingState: (partyId: string, isBuilding: boolean) => void;
+  finishParty: (partyId: string) => void;
 }
 
 export interface InterServerEvents {
