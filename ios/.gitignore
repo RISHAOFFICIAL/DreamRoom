@@ -3,7 +3,12 @@
 # gitignore contributors: checkout the wiki page for more info: https://github.com/github/gitignore/wiki/Xcode
 # Project-specific Files
 *.xcworkspace
-*.xcodeproj
+!*.xcodeproj/
+*.xcodeproj/*
+!*.xcodeproj/project.pbxproj
+!*.xcodeproj/xcshareddata/
+!*.xcodeproj/project.xcworkspace/
+!*.xcodeproj/project.xcworkspace/contents.xcworkspacedata
 # User-specific Files
 xcuserdata/
 # Build Results
