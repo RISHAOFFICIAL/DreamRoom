@@ -1,12 +1,13 @@
 import Foundation
 import SwiftUI
+import Combine
 
 struct Participant: Identifiable, Codable {
-    let id: UUID
+    let id: String
     var name: String
-    var avatarUrl: String?
+    var isHost: Bool
+    var ssid: String?
     var isBuilding: Bool = false
-    var isReady: Bool = false
 }
 
 enum PartyStatus: String, Codable {
@@ -22,80 +23,51 @@ class PartyViewModel: ObservableObject {
     @Published var countdown: Int = 10
     @Published var isGoldenHour: Bool = false
     @Published var isHost: Bool = false
+    @Published var partyId: String = ""
     
     private var cancellables = Set<AnyCancellable>()
     private let socketService = SocketService.shared
-    private var partyId: String
     private var userId: String = UUID().uuidString
     
     init(partyId: String = "test-party-123") {
         self.partyId = partyId
         setupSocketSubscriptions()
         
-        // Mock initial state
-        participants = [
-            Participant(id: UUID(), name: "Blake", avatarUrl: nil, isBuilding: true),
-            Participant(id: UUID(), name: "Casey", avatarUrl: nil, isBuilding: true)
-        ]
-        
         socketService.connect()
         
         // Fetch SSID and then join
         WiFiService.shared.fetchCurrentSSID()
         
-        // In a real app, we would wait for the SSID to be fetched or observe it
-        // For now, we'll just join after a short delay or with the initial value
+        // Join the party
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
             self.socketService.joinParty(
                 partyId: self.partyId,
-                userId: self.userId,
-                name: "Avery",
+                userName: "Avery",
                 ssid: WiFiService.shared.currentSSID
             )
         }
     }
     
     private func setupSocketSubscriptions() {
-        socketService.participantJoined
+        socketService.partyUpdated
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] participant in
-                self?.participants.append(participant)
-            }
-            .store(in: &cancellables)
-        
-        socketService.participantLeft
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] id in
-                self?.participants.removeAll { $0.id == id }
-            }
-            .store(in: &cancellables)
-            
-        socketService.buildingStateUpdated
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] update in
-                if let index = self?.participants.firstIndex(where: { $0.id == update.userId }) {
-                    self?.participants[index].isBuilding = update.isBuilding
+            .sink { [weak self] partyData in
+                self?.partyId = partyData.id
+                self?.participants = partyData.participants
+                self?.isGoldenHour = partyData.isGoldenHour
+                
+                // Update status if needed
+                if partyData.status == "reveal" && self?.status == .building {
+                    self?.status = .revealCountdown
+                    self?.countdown = 10
+                    self?.startInternalCountdown()
+                } else if partyData.status == "finished" {
+                    self?.status = .completed
                 }
             }
             .store(in: &cancellables)
             
-        socketService.revealStarted
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] countdown in
-                self?.status = .revealCountdown
-                self?.countdown = countdown
-                self?.startInternalCountdown()
-            }
-            .store(in: &cancellables)
-            
-        socketService.revealTriggered
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] in
-                self?.status = .revealing
-            }
-            .store(in: &cancellables)
-            
-        socketService.goldenHourTriggered
+        socketService.goldenHourToggled
             .receive(on: DispatchQueue.main)
             .sink { [weak self] active in
                 if active && !(self?.isGoldenHour ?? true) {
@@ -106,6 +78,20 @@ class PartyViewModel: ObservableObject {
                 }
             }
             .store(in: &cancellables)
+            
+        socketService.goldenRevealTriggered
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.status = .revealing
+            }
+            .store(in: &cancellables)
+            
+        socketService.errorReceived
+            .receive(on: DispatchQueue.main)
+            .sink { message in
+                print("[UI Error] \(message)")
+            }
+            .store(in: &cancellables)
     }
     
     func startReveal() {
@@ -113,13 +99,7 @@ class PartyViewModel: ObservableObject {
     }
     
     func toggleGoldenHour() {
-        // Toggle locally and notify socket
-        isGoldenHour.toggle()
-        socketService.sendGoldenHourToggle(partyId: partyId, enabled: isGoldenHour)
-        
-        if isGoldenHour {
-            SoundService.shared.play(name: "golden-hour-transition")
-        }
+        socketService.toggleGoldenHour(partyId: partyId, enabled: !isGoldenHour)
     }
     
     private func startInternalCountdown() {
@@ -133,6 +113,6 @@ class PartyViewModel: ObservableObject {
     }
     
     func updateBuildingState(isBuilding: Bool) {
-        socketService.sendBuildingState(partyId: partyId, userId: userId, isBuilding: isBuilding)
+        socketService.updateBuildingState(partyId: partyId, isBuilding: isBuilding)
     }
 }

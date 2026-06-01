@@ -1,9 +1,10 @@
 import Foundation
 import Combine
+import SocketIO
 
 /**
  * SocketService handles real-time communication with the backend.
- * In a real environment, this would use the Socket.io-Client-Swift package.
+ * Uses the Socket.io-Client-Swift package.
  */
 class SocketService: ObservableObject {
     static let shared = SocketService()
@@ -11,116 +12,140 @@ class SocketService: ObservableObject {
     @Published var isConnected = false
     @Published var isReconnecting = false
     
+    private var manager: SocketManager?
+    private var socket: SocketIOClient?
+    
     private var reconnectTimer: Timer?
     private var retryCount = 0
     private let maxRetries = 5
     
+    // MARK: - Incoming Events
+    let participantJoined = PassthroughSubject<Participant, Never>()
+    let partyUpdated = PassthroughSubject<PartyData, Never>()
+    let goldenRevealTriggered = PassthroughSubject<String, Never>()
+    let goldenHourToggled = PassthroughSubject<Bool, Never>()
+    let errorReceived = PassthroughSubject<String, Never>()
+    
     private init() {
-        // Setup socket configuration
-        // let url = URL(string: "http://0.0.0.0:3000")!
-        // manager = SocketManager(socketURL: url, config: [.log(true), .compress])
-        // socket = manager?.defaultSocket
+        // In the sandbox environment, the backend runs on Port 3001
+        // We use 0.0.0.0 to ensure public accessibility if needed, 
+        // but localhost is fine for internal sandbox communication.
+        let url = URL(string: "http://localhost:3001")!
+        manager = SocketManager(socketURL: url, config: [.log(false), .compress])
+        socket = manager?.defaultSocket
+        
+        setupHandlers()
+    }
+    
+    private func setupHandlers() {
+        socket?.on(clientEvent: .connect) { [weak self] data, ack in
+            print("[Socket] Connected")
+            self?.isConnected = true
+            self?.isReconnecting = false
+            self?.retryCount = 0
+        }
+        
+        socket?.on(clientEvent: .disconnect) { [weak self] data, ack in
+            print("[Socket] Disconnected")
+            self?.isConnected = false
+        }
+        
+        socket?.on(clientEvent: .reconnectAttempt) { [weak self] data, ack in
+            print("[Socket] Reconnecting...")
+            self?.isReconnecting = true
+        }
+        
+        socket?.on("partyUpdated") { [weak self] data, ack in
+            guard let dict = data[0] as? [String: Any],
+                  let partyData = self?.parsePartyData(dict) else { return }
+            self?.partyUpdated.send(partyData)
+        }
+        
+        socket?.on("goldenHourToggled") { [weak self] data, ack in
+            guard let enabled = data[0] as? Bool else { return }
+            self?.goldenHourToggled.send(enabled)
+        }
+        
+        socket?.on("goldenRevealTriggered") { [weak self] data, ack in
+            guard let partyId = data[0] as? String else { return }
+            self?.goldenRevealTriggered.send(partyId)
+        }
+        
+        socket?.on("error") { [weak self] data, ack in
+            guard let message = data[0] as? String else { return }
+            self?.errorReceived.send(message)
+        }
     }
     
     func connect() {
         print("[Socket] Connecting to server...")
-        isReconnecting = true
-        
-        // Simulate connection logic with retry
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            // Simulate spotty connection: 30% chance of failure
-            let success = Double.random(in: 0...1) > 0.3
-            
-            if success {
-                self.isConnected = true
-                self.isReconnecting = false
-                self.retryCount = 0
-                print("[Socket] Connected")
-            } else {
-                print("[Socket] Connection failed")
-                self.attemptReconnect()
-            }
-        }
-    }
-    
-    /**
-     * Reconnection strategy for the Detroit Tour:
-     * - Uses exponential backoff to avoid hammering the server during venue-wide outages.
-     * - Retries up to 5 times before requiring manual intervention.
-     * - Maintains an 'isReconnecting' state to show a subtle UI indicator to the user.
-     */
-    private func attemptReconnect() {
-        guard retryCount < maxRetries else {
-            isReconnecting = false
-            print("[Socket] Max retries reached. Manual intervention needed.")
-            return
-        }
-        
-        retryCount += 1
-        let delay = pow(2.0, Double(retryCount)) // Exponential backoff
-        print("[Socket] Reconnecting in \(delay)s (Attempt \(retryCount))")
-        
-        reconnectTimer?.invalidate()
-        reconnectTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
-            self?.connect()
-        }
+        socket?.connect()
     }
     
     func disconnect() {
-        reconnectTimer?.invalidate()
-        self.isConnected = false
-        self.isReconnecting = false
-        print("[Socket] Disconnected")
+        socket?.disconnect()
     }
     
     // MARK: - Outgoing Events
     
-    func joinParty(partyId: String, userId: String, name: String, ssid: String? = nil) {
-        var data: [String: Any] = [
-            "partyId": partyId,
-            "userId": userId,
-            "name": name
-        ]
-        if let ssid = ssid {
-            data["ssid"] = ssid
-        }
-        print("[Socket] Sending joinParty: \(data)")
-        // socket?.emit("joinParty", data)
+    func createParty(hostName: String, ssid: String? = nil) {
+        socket?.emit("createParty", hostName, ssid ?? "")
     }
     
-    func sendBuildingState(partyId: String, userId: String, isBuilding: Bool) {
-        let data: [String: Any] = [
-            "partyId": partyId,
-            "userId": userId,
-            "isBuilding": isBuilding
-        ]
-        print("[Socket] Sending updateBuildingState: \(data)")
-        // socket?.emit("updateBuildingState", data)
+    func joinParty(partyId: String, userName: String, ssid: String? = nil) {
+        socket?.emit("joinParty", partyId, userName, ssid ?? "")
+    }
+    
+    func updateBuildingState(partyId: String, isBuilding: Bool) {
+        socket?.emit("updateBuildingState", partyId, isBuilding)
     }
     
     func triggerReveal(partyId: String) {
-        print("[Socket] Sending triggerReveal for party: \(partyId)")
-        // socket?.emit("triggerReveal", ["partyId": partyId])
+        socket?.emit("triggerReveal", partyId)
     }
     
-    func sendGoldenHourToggle(partyId: String, enabled: Bool) {
-        let data: [String: Any] = [
-            "partyId": partyId,
-            "enabled": enabled
-        ]
-        print("[Socket] Sending toggleGoldenHour: \(data)")
-        // socket?.emit("toggleGoldenHour", data)
+    func toggleGoldenHour(partyId: String, enabled: Bool) {
+        socket?.emit("toggleGoldenHour", partyId, enabled)
     }
     
-    // MARK: - Incoming Events (Simulated)
+    // MARK: - Parsing
     
-    // In a real app, these would be handled via socket.on("eventName") callbacks
-    // and then published via PassthroughSubjects or @Published properties.
-    
-    let participantJoined = PassthroughSubject<Participant, Never>()
-    let participantLeft = PassthroughSubject<UUID, Never>()
-    let buildingStateUpdated = PassthroughSubject<(userId: UUID, isBuilding: Bool), Never>()
-    let revealStarted = PassthroughSubject<Int, Never>() // Countdown duration
-    let revealTriggered = PassthroughSubject<Void, Never>()
-    let goldenHourTriggered = PassthroughSubject<Bool, Never>()
+    private func parsePartyData(_ dict: [String: Any]) -> PartyData? {
+        // Simple manual parsing for MVP
+        guard let id = dict["id"] as? String,
+              let status = dict["status"] as? String,
+              let isGoldenHour = dict["isGoldenHour"] as? Bool,
+              let participantsDict = dict["participants"] as? [[String: Any]] else {
+            return nil
+        }
+        
+        let participants = participantsDict.compactMap { pDict -> Participant? in
+            guard let pId = pDict["id"] as? String,
+                  let pName = pDict["name"] as? String,
+                  let pIsHost = pDict["isHost"] as? Bool else {
+                return nil
+            }
+            return Participant(
+                id: pId,
+                name: pName,
+                isHost: pIsHost,
+                ssid: pDict["ssid"] as? String,
+                isBuilding: pDict["isBuilding"] as? Bool ?? false
+            )
+        }
+        
+        return PartyData(
+            id: id,
+            status: status,
+            participants: participants,
+            isGoldenHour: isGoldenHour
+        )
+    }
+}
+
+struct PartyData {
+    let id: String
+    let status: String
+    let participants: [Participant]
+    let isGoldenHour: Bool
 }
