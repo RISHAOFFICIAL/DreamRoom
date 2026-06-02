@@ -4,6 +4,7 @@ export interface User {
   isHost: boolean;
   isBuilding?: boolean;
   ssid?: string;
+  nearbyDevicesCount?: number;
 }
 
 export interface Party {
@@ -28,6 +29,7 @@ export interface ClientToServerEvents {
   triggerReveal: (partyId: string) => void;
   toggleGoldenHour: (partyId: string, enabled: boolean) => void;
   updateBuildingState: (partyId: string, isBuilding: boolean) => void;
+  updateNearbyDevices: (partyId: string, count: number) => void;
 }
 
 export interface InterServerEvents {

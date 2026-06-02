@@ -108,6 +108,10 @@ class SocketService: ObservableObject {
         socket?.emit("toggleGoldenHour", partyId, enabled)
     }
     
+    func updateNearbyDevices(partyId: String, count: Int) {
+        socket?.emit("updateNearbyDevices", partyId, count)
+    }
+    
     // MARK: - Parsing
     
     private func parsePartyData(_ dict: [String: Any]) -> PartyData? {

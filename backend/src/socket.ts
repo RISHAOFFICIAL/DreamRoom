@@ -22,7 +22,10 @@ const checkGoldenHour = (party: Party): boolean => {
     }
   });
 
-  return Object.values(ssidCounts).some(count => count >= 3);
+  const hasThreeSameSsid = Object.values(ssidCounts).some(count => count >= 3);
+  const hasThreeNearbyViaBluetooth = party.participants.some(user => (user.nearbyDevicesCount || 0) >= 2);
+
+  return hasThreeSameSsid || hasThreeNearbyViaBluetooth;
 };
 
 export const setupSocket = (io: Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>) => {
@@ -95,7 +98,7 @@ export const setupSocket = (io: Server<ClientToServerEvents, ServerToClientEvent
         io.to(partyId).emit('goldenHourToggled', true);
         trackEvent(party.hostId, 'golden_hour_activated', {
           party_id: partyId,
-          trigger: 'wifi_detection'
+          trigger: 'proximity_detection'
         });
       }
 
@@ -135,9 +138,6 @@ export const setupSocket = (io: Server<ClientToServerEvents, ServerToClientEvent
         return;
       }
 
-      // Check if the requester is the host (optional but recommended)
-      // For now, let's assume any trigger is valid for the MVP override
-      
       const wasGoldenHour = party.isGoldenHour;
       party.isGoldenHour = enabled;
 
@@ -164,9 +164,31 @@ export const setupSocket = (io: Server<ClientToServerEvents, ServerToClientEvent
       }
     });
 
+    socket.on('updateNearbyDevices', (partyId, count) => {
+      const party = parties.get(partyId);
+      if (!party) return;
+
+      const user = party.participants.find(u => u.id === socket.data.userId);
+      if (user) {
+        user.nearbyDevicesCount = count;
+
+        const wasGoldenHour = party.isGoldenHour;
+        party.isGoldenHour = checkGoldenHour(party);
+
+        io.to(partyId).emit('partyUpdated', party);
+
+        if (!wasGoldenHour && party.isGoldenHour) {
+          io.to(partyId).emit('goldenHourToggled', true);
+          trackEvent(party.hostId, 'golden_hour_activated', {
+            party_id: partyId,
+            trigger: 'bluetooth_proximity'
+          });
+        }
+      }
+    });
+
     socket.on('disconnect', () => {
       console.log('User disconnected:', socket.id);
-      // Optional: Cleanup SSID counts if necessary
     });
   });
 };

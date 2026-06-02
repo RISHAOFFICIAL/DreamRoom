@@ -27,13 +27,16 @@ class PartyViewModel: ObservableObject {
     
     private var cancellables = Set<AnyCancellable>()
     private let socketService = SocketService.shared
+    private let proximityService = ProximityService.shared
     private var userId: String = UUID().uuidString
     
     init(partyId: String = "test-party-123") {
         self.partyId = partyId
         setupSocketSubscriptions()
+        setupProximitySubscription()
         
         socketService.connect()
+        proximityService.start()
         
         // Fetch SSID and then join
         WiFiService.shared.fetchCurrentSSID()
@@ -90,6 +93,16 @@ class PartyViewModel: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { message in
                 print("[UI Error] \(message)")
+            }
+            .store(in: &cancellables)
+    }
+    
+    private func setupProximitySubscription() {
+        proximityService.$nearbyDevicesCount
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] count in
+                guard let self = self, !self.partyId.isEmpty else { return }
+                self.socketService.updateNearbyDevices(partyId: self.partyId, count: count)
             }
             .store(in: &cancellables)
     }
