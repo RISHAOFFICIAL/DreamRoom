@@ -1,6 +1,6 @@
 # DreamRoom - Vision Board Gathering Platform
 
-DreamRoom is a social ritual platform for building vision boards together in real-time. This repository is organized as a monorepo containing the core components of the DreamRoom ecosystem.
+DreamRoom is a social experience platform for building vision boards together in real-time. This repository is organized as a monorepo containing the core components of the DreamRoom ecosystem.
 
 ## Project Structure
 
