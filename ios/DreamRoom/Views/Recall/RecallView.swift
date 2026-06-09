@@ -153,7 +153,7 @@ struct ItemFrame: View {
                     ZStack {
                         Color.gold.opacity(0.1)
                         Text(item.text ?? "")
-                            .font(.custom("CormorantGaramond-Medium", size: 32))
+                            .font(.custom(DreamTheme.mediumFontName, size: 32))
                             .foregroundColor(.gold)
                             .multilineTextAlignment(.center)
                             .padding(40)
@@ -209,7 +209,7 @@ struct FinalRevealFrame: View {
             // Full Board under Golden Hour filter
             VStack(spacing: 30) {
                 Text("Your vision is taking shape.")
-                    .font(.custom("CormorantGaramond-Italic", size: 32))
+                    .font(.custom(DreamTheme.italicFontName, size: 32))
                     .foregroundColor(.white)
                     .padding(.top, 60)
                 
@@ -272,7 +272,7 @@ struct FinalRevealFrame: View {
                     
                     Button(action: {}) {
                         Text("Share with Witnesses")
-                            .font(.custom("CormorantGaramond-Medium", size: 18))
+                            .font(.custom(DreamTheme.mediumFontName, size: 18))
                             .foregroundColor(.gold)
                     }
                 }

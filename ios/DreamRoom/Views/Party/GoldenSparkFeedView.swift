@@ -10,10 +10,10 @@ struct GoldenSparkFeedView: View {
                     Image(systemName: "sparkles")
                         .foregroundColor(.gold)
                     Text(spark.fromName)
-                        .font(.custom("CormorantGaramond-Bold", size: 14))
+                        .font(.custom(DreamTheme.boldFontName, size: 14))
                         .foregroundColor(.gold)
                     Text("witnessed a dream")
-                        .font(.custom("CormorantGaramond-Italic", size: 14))
+                        .font(.custom(DreamTheme.italicFontName, size: 14))
                         .foregroundColor(.white.opacity(0.8))
                 }
                 .padding(.horizontal, 12)

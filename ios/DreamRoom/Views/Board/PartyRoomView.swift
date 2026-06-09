@@ -24,7 +24,7 @@ struct PartyRoomView: View {
                     }
                     Spacer()
                     Text("The Party Room")
-                        .font(.custom("CormorantGaramond-Bold", size: 24))
+                        .font(.custom(DreamTheme.boldFontName, size: 24))
                         .goldenHour(active: viewModel.isGoldenHour)
                     Spacer()
                     // Host controls
@@ -77,7 +77,7 @@ struct PartyRoomView: View {
                     
                     if viewModel.status == .revealCountdown {
                         Text("\(viewModel.countdown)")
-                            .font(.custom("CormorantGaramond-Bold", size: 120))
+                            .font(.custom(DreamTheme.boldFontName, size: 120))
                             .foregroundColor(.gold)
                             .transition(.scale)
                     }
@@ -136,7 +136,7 @@ struct ParticipantAvatarView: View {
                 }
             }
             Text(participant.name)
-                .font(.custom("CormorantGaramond-Regular", size: 12))
+                .font(.custom(DreamTheme.fontName, size: 12))
                 .goldenHour(active: isGoldenHour)
         }
     }

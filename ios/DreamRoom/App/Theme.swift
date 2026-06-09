@@ -14,6 +14,8 @@ struct DreamTheme {
     static let fontName = "CormorantGaramond-Regular"
     static let italicFontName = "CormorantGaramond-Italic"
     static let boldFontName = "CormorantGaramond-Bold"
+    static let mediumFontName = "CormorantGaramond-Medium"
+    static let mediumItalicFontName = "CormorantGaramond-MediumItalic"
 }
 
 struct GoldenHourModifier: ViewModifier {
