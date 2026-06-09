@@ -108,6 +108,68 @@ app.post('/api/unlock-kit', (req, res) => {
   res.send({ status: 'ok', kitId });
 });
 
+// Dream Recall APIs
+app.get('/api/recap/:recallId', (req, res) => {
+  const { recallId } = req.params;
+  const recalls = queryTeamDb(`
+    SELECT r.*, b.final_state_json
+    FROM dream_recalls r
+    JOIN archived_boards b ON r.board_id = b.id
+    WHERE r.id = '${recallId.replace(/'/g, \"''\")}'
+  `);
+  
+  if (!recalls || recalls.length === 0) {
+    return res.status(404).send('Recall not found');
+  }
+  
+  res.send(recalls[0]);
+});
+
+app.post('/api/recap/:recallId/click', (req, res) => {
+  const { recallId } = req.params;
+  queryTeamDb(`
+    UPDATE dream_recalls
+    SET status = 'clicked', clicked_at = ${Date.now()}
+    WHERE id = '${recallId.replace(/'/g, \"''\")}'
+  `);
+  res.send({ status: 'ok' });
+});
+
+app.post('/api/recap/convert', (req, res) => {
+  const { userId, recallId } = req.body;
+  if (!userId) return res.status(400).send('Missing userId');
+  
+  if (recallId) {
+    queryTeamDb(`
+      UPDATE dream_recalls
+      SET status = 'converted', converted_at = ${Date.now()}
+      WHERE id = '${recallId.replace(/'/g, \"''\")}' AND user_id = '${userId.replace(/'/g, \"''\")}'
+    `);
+  }
+  res.send({ status: 'ok' });
+});
+
+app.post('/api/admin/process-recalls', async (req, res) => {
+  const now = Date.now();
+  const dueRecalls = queryTeamDb(`
+    SELECT * FROM dream_recalls
+    WHERE status = 'pending' AND scheduled_for <= ${now}
+  `);
+  
+  if (dueRecalls && dueRecalls.length > 0) {
+    for (const recall of dueRecalls) {
+      queryTeamDb(`
+        UPDATE dream_recalls
+        SET status = 'sent', sent_at = ${now}
+        WHERE id = '${recall.id}'
+      `);
+      console.log(`Sent recall ${recall.id} to user ${recall.user_id}`);
+    }
+  }
+  
+  res.send({ processed: dueRecalls?.length || 0 });
+});
+
 Sentry.setupExpressErrorHandler(app);
 
 // Invite link generation

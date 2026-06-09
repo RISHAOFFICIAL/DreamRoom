@@ -12,6 +12,8 @@ class SoundService {
         prepareSound(name: "soft-settle")
         prepareSound(name: "golden-hour-transition")
         prepareSound(name: "cinematic-reveal")
+        prepareSound(name: "reveal-shimmer")
+        prepareSound(name: "gold-spark")
     }
     
     private func prepareSound(name: String) {

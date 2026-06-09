@@ -1,0 +1,141 @@
+import SwiftUI
+
+struct BoardView: View {
+    @StateObject var viewModel = BoardViewModel.shared
+    @State private var showingSettings = false
+    @State private var showingPartyRoom = false
+    @State private var showingShop = false
+    @State private var showingScanner = false
+    @State private var activePartyId = "test-party-123"
+    
+    var body: some View {
+        ZStack {
+            // Background
+            Color(.systemBackground)
+                .edgesIgnoringSafeArea(.all)
+            
+            // Canvas
+            BoardCanvasView(
+                viewModel: viewModel,
+                isPartyMode: true,
+                activePartyId: activePartyId
+            )
+            
+            // UI Overlay
+            if !viewModel.isViewMode {
+                VStack {
+                    HStack {
+                        Button(action: { showingSettings = true }) {
+                            Image(systemName: "gearshape")
+                                .resizable()
+                                .frame(width: 24, height: 24)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding()
+                        
+                        Button(action: { showingShop = true }) {
+                            Image(systemName: "sparkles")
+                                .resizable()
+                                .frame(width: 24, height: 24)
+                                .foregroundColor(.gold)
+                        }
+                        .padding()
+                        
+                        Button(action: { showingPartyRoom = true }) {
+                            Image(systemName: "person.3.fill")
+                                .resizable()
+                                .frame(width: 32, height: 20)
+                                .foregroundColor(.gold)
+                        }
+                        .padding()
+                        
+                        Button(action: { showingScanner = true }) {
+                            Image(systemName: "qrcode.viewfinder")
+                                .resizable()
+                                .frame(width: 32, height: 32)
+                                .foregroundColor(.gold)
+                        }
+                        .padding()
+                        
+                        Button(action: { shareInvite() }) {
+                            Image(systemName: "square.and.arrow.up")
+                                .resizable()
+                                .frame(width: 20, height: 24)
+                                .foregroundColor(.gold)
+                        }
+                        .padding()
+                        
+                        Spacer()
+                        
+                        Button(action: {
+                            viewModel.addItem(text: "New Dream")
+                        }) {
+                            Image(systemName: "plus.circle.fill")
+                                .resizable()
+                                .frame(width: 44, height: 44)
+                                .foregroundColor(.gold)
+                        }
+                        .padding()
+                    }
+                    Spacer()
+                    
+                    Text("Double tap canvas to hide UI")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding()
+                }
+            }
+        }
+        .fullScreenCover(isPresented: $showingPartyRoom) {
+            PartyRoomView(partyId: activePartyId)
+        }
+        .fullScreenCover(isPresented: $showingShop) {
+            DreamShopView()
+        }
+        .sheet(isPresented: $showingScanner) {
+            QRCodeScannerView(onScan: { code in
+                showingScanner = false
+                handleScan(code: code)
+            }, onDismiss: {
+                showingScanner = false
+            })
+        }
+        .sheet(isPresented: $showingSettings) {
+            NavigationView {
+                PrivacySettingsView(settings: $viewModel.settings)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button("Done") { showingSettings = false }
+                        }
+                    }
+            }
+        }
+        .onAppear {
+            if viewModel.items.isEmpty {
+                viewModel.addItem(text: "Luxury Travel")
+                viewModel.items[0].position = CGPoint(x: 100, y: 200)
+                viewModel.addItem(text: "Penthouse View")
+                viewModel.items[1].position = CGPoint(x: 250, y: 400)
+                viewModel.items[1].rotation = Angle(degrees: 15)
+            }
+        }
+    }
+    
+    private func shareInvite() {
+        PartyService.shared.createInviteLink(partyId: activePartyId) { url in
+            guard let url = url else { return }
+            DispatchQueue.main.async {
+                let activityVC = UIActivityViewController(activityItems: ["Join my DreamRoom party!", url], applicationActivities: nil)
+                if let topVC = UIApplication.shared.windows.first?.rootViewController {
+                    activityVC.popoverPresentationController?.sourceView = topVC.view
+                    topVC.present(activityVC, animated: true, completion: nil)
+                }
+            }
+        }
+    }
+    
+    private func handleScan(code: String) {
+        activePartyId = code
+        showingPartyRoom = true
+    }
+}

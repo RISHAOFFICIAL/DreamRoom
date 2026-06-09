@@ -45,4 +45,29 @@ export const archiveBoard = async (party: any) => {
       VALUES ('${boardId}', '${user.id}', '${userName}')
     `);
   }
+
+  // Schedule Dream Recalls
+  await scheduleRecalls(boardId, party.participants);
+};
+
+export const scheduleRecalls = async (boardId: string, participants: any[]) => {
+  const intervals = [
+    { type: '24h', delay: 24 * 60 * 60 * 1000 },
+    { type: '7d', delay: 7 * 24 * 60 * 60 * 1000 },
+    { type: '30d', delay: 30 * 24 * 60 * 60 * 1000 },
+  ];
+
+  const now = Date.now();
+
+  for (const participant of participants) {
+    for (const interval of intervals) {
+      const recallId = `${boardId}_${participant.id}_${interval.type}`;
+      const scheduledFor = now + interval.delay;
+      
+      queryTeamDb(`
+        INSERT OR IGNORE INTO dream_recalls (id, board_id, user_id, scheduled_for, recall_type, status)
+        VALUES ('${recallId}', '${boardId}', '${participant.id}', ${scheduledFor}, '${interval.type}', 'pending')
+      `);
+    }
+  }
 };

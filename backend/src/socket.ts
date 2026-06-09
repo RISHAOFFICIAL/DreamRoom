@@ -7,22 +7,34 @@ import type {
   SocketData,
   Party,
   User,
-  BoardItem
+  BoardItem,
+  GoldenSpark
 } from './types.js';
 import { trackEvent } from './analytics.js';
 import redisClient from './redisClient.js';
-import { archiveBoard } from './db.js';
+import { archiveBoard, queryTeamDb } from './db.js';
 
 const PARTY_PREFIX = 'party:';
 
-// Kit configuration for entitlements
-const LUXURY_KITS = ['sanctuary', 'urban', 'gold'];
-// In a real app, these would be fetched from a DB or CDN manifest
-const KIT_ASSETS: Record<string, string[]> = {
-  'sanctuary': ['sanctuary_frame_1.png', 'sanctuary_frame_2.png', 'sanctuary_bg.jpg'],
-  'urban': ['urban_asset_1.png', 'urban_asset_2.png'],
-  'gold': ['gold_accent_1.png', 'gold_reveal_sound.mp3']
+// Helper to fetch owned kits from the shared database
+const getOwnedKits = (userId: string): string[] => {
+  try {
+    const result = queryTeamDb(`SELECT kit_id FROM owned_kits WHERE user_id = '${userId.replace(/'/g, "''")}'`);
+    return Array.isArray(result) ? result.map((r: any) => r.kit_id) : [];
+  } catch (e) {
+    console.error('Error fetching owned kits:', e);
+    return [];
+  }
 };
+
+// Luxury assets configuration
+const LUXURY_KITS = ['sanctuary-pack', 'urban-vision', 'manifest-gold'];
+const KIT_ASSETS: Record<string, string[]> = {
+  'sanctuary-pack': ["sanctuary_01", "sanctuary_02", "sanctuary_03"],
+  'urban-vision': ["urban_01", "urban_02", "urban_03"],
+  'manifest-gold': ["gold_01", "gold_02", "gold_03"]
+};
+const ALL_LUXURY_ASSETS = Object.values(KIT_ASSETS).flat();
 
 export const getParty = async (partyId: string): Promise<Party | null> => {
   const data = await redisClient.get(`${PARTY_PREFIX}${partyId}`);
@@ -62,17 +74,6 @@ const checkGoldenHour = (party: Party): boolean => {
   return hasThreeSameSsid || hasThreeSameIpGroup || hasThreeNearbyViaBluetooth;
 };
 
-const isAssetPremium = (url: string): boolean => {
-  return Object.values(KIT_ASSETS).some(assets => assets.some(a => url.includes(a)));
-};
-
-const userHasKitForAsset = (user: User, url: string): boolean => {
-  if (!user.ownedKits) return false;
-  return user.ownedKits.some(kitId => 
-    KIT_ASSETS[kitId]?.some(a => url.includes(a))
-  );
-};
-
 export const setupSocket = (io: Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>) => {
   io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
@@ -81,16 +82,14 @@ export const setupSocket = (io: Server<ClientToServerEvents, ServerToClientEvent
       const partyId = uuidv4().substring(0, 8).toUpperCase();
       const hostId = uuidv4();
       
-      // In production, we would verify the user's builder status from a database
-      // For the MVP, we might get this from the client or a session
       const host: User = {
         id: hostId,
         name: hostName,
         isHost: true,
         ssid,
         ipGroup: socket.handshake.address,
-        isBuilder: false, // Default, will be updated by client if applicable
-        ownedKits: []
+        isBuilder: true, // For MVP demo, host is always a Builder
+        ownedKits: getOwnedKits(hostId)
       };
 
       const newParty: Party = {
@@ -102,7 +101,7 @@ export const setupSocket = (io: Server<ClientToServerEvents, ServerToClientEvent
         sparks: [],
         createdAt: Date.now(),
         isGoldenHour: false,
-        isBuilderHosted: false
+        isBuilderHosted: host.isBuilder
       };
 
       await saveParty(newParty);
@@ -116,7 +115,7 @@ export const setupSocket = (io: Server<ClientToServerEvents, ServerToClientEvent
       trackEvent(hostId, 'party_created', {
         party_id: partyId,
         host_id: hostId,
-        is_manual_override: false
+        is_builder: host.isBuilder
       });
 
       console.log(`Party created: ${partyId} by ${hostName}`);
@@ -137,7 +136,8 @@ export const setupSocket = (io: Server<ClientToServerEvents, ServerToClientEvent
         isHost: false,
         ssid,
         ipGroup: socket.handshake.address,
-        ownedKits: []
+        isBuilder: false,
+        ownedKits: getOwnedKits(userId)
       };
 
       party.participants.push(newUser);
@@ -165,31 +165,34 @@ export const setupSocket = (io: Server<ClientToServerEvents, ServerToClientEvent
 
       trackEvent(userId, 'party_joined', {
         party_id: partyId,
-        guest_id: userId,
-        join_method: 'link'
+        guest_id: userId
       });
 
       console.log(`User ${userName} joined party: ${partyId}`);
     });
 
-    socket.on('addItem', async (partyId, item) => {
+    socket.on('addItem', async (partyId, itemData) => {
       const party = await getParty(partyId);
       if (!party) return;
 
       const user = party.participants.find(u => u.id === socket.data.userId);
       if (!user) return;
 
-      // Entitlement Check
-      if (isAssetPremium(item.url)) {
-        const hasPermission = user.isBuilder || party.isBuilderHosted || userHasKitForAsset(user, item.url);
-        if (!hasPermission) {
-          socket.emit('error', 'Premium asset requires Builder Plan or Kit purchase');
+      // Entitlement Check for Luxury Assets
+      const assetUrl = itemData.url;
+      if (assetUrl && ALL_LUXURY_ASSETS.includes(assetUrl)) {
+        const hasKit = user.ownedKits?.some(kitId => {
+          return KIT_ASSETS[kitId]?.includes(assetUrl);
+        });
+        
+        if (!hasKit && !user.isBuilder && !party.isBuilderHosted) {
+          socket.emit('error', 'Luxury asset requires Builder Plan or Kit purchase');
           return;
         }
       }
 
       const newItem: BoardItem = {
-        ...item,
+        ...itemData,
         witnesses: []
       };
 
@@ -199,8 +202,47 @@ export const setupSocket = (io: Server<ClientToServerEvents, ServerToClientEvent
 
       trackEvent(user.id, 'item_added', {
         party_id: partyId,
-        asset_url: item.url,
-        is_premium: isAssetPremium(item.url)
+        item_id: newItem.id,
+        is_luxury: assetUrl && ALL_LUXURY_ASSETS.includes(assetUrl)
+      });
+    });
+
+    socket.on('witnessItem', async (partyId, itemId) => {
+      const party = await getParty(partyId);
+      if (!party) return;
+
+      const user = party.participants.find(u => u.id === socket.data.userId);
+      if (!user) return;
+
+      const item = party.items.find(i => i.id === itemId);
+      if (!item) return;
+
+      if (!item.witnesses.includes(user.name)) {
+        item.witnesses.push(user.name);
+      }
+
+      const spark: GoldenSpark = {
+        id: uuidv4(),
+        fromName: user.name,
+        itemId: itemId,
+        timestamp: Date.now()
+      };
+
+      if (!party.sparks) party.sparks = [];
+      party.sparks.push(spark);
+
+      await saveParty(party);
+      
+      io.to(partyId).emit('itemWitnessed', { 
+        itemId, 
+        witnessedBy: user.name,
+        spark 
+      });
+      io.to(partyId).emit('partyUpdated', party);
+
+      trackEvent(user.id, 'item_witnessed', {
+        party_id: partyId,
+        item_id: itemId
       });
     });
 
@@ -232,11 +274,7 @@ export const setupSocket = (io: Server<ClientToServerEvents, ServerToClientEvent
 
     socket.on('triggerReveal', async (partyId) => {
       const party = await getParty(partyId);
-      
-      if (!party) {
-        socket.emit('error', 'Party not found');
-        return;
-      }
+      if (!party) return;
 
       party.status = 'reveal';
       await saveParty(party);
@@ -247,16 +285,11 @@ export const setupSocket = (io: Server<ClientToServerEvents, ServerToClientEvent
         party_id: partyId,
         participant_count: party.participants.length
       });
-
-      console.log(`Reveal triggered for party: ${partyId}`);
     });
 
     socket.on('toggleGoldenHour', async (partyId, enabled) => {
       const party = await getParty(partyId);
-      if (!party) {
-        socket.emit('error', 'Party not found');
-        return;
-      }
+      if (!party) return;
 
       const wasGoldenHour = party.isGoldenHour;
       party.isGoldenHour = enabled;
@@ -300,7 +333,6 @@ export const setupSocket = (io: Server<ClientToServerEvents, ServerToClientEvent
     });
 
     socket.on('disconnect', async () => {
-      console.log('User disconnected:', socket.id);
       const { userId, partyId } = socket.data;
       if (userId && partyId) {
         const party = await getParty(partyId);

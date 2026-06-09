@@ -7,18 +7,32 @@ class BoardViewModel: ObservableObject {
     
     @Published var items: [BoardItem] = []
     @Published var isViewMode: Bool = false
+    @Published var boardTitle: String = "The Sanctuary"
     @Published var settings: BoardSettings = BoardSettings()
+    @Published var activePartyId: String? = nil
     
     // Track z-index to bring active items to front
     private var maxZIndex: Double = 0
     
     func addItem(imageUrl: String? = nil, text: String? = nil) {
+        // Gate kit assets
+        if let url = imageUrl, !DreamKitService.shared.isAssetUnlocked(assetName: url) {
+            print("[Entitlement] Asset \(url) is locked.")
+            // In a real app, we might trigger a shop popup here
+            return
+        }
+
         let newItem = BoardItem(
             imageUrl: imageUrl,
             text: text,
             position: CGPoint(x: 200, y: 300) // Default center-ish
         )
         items.append(newItem)
+        
+        // If in a party, sync the new item
+        if let partyId = activePartyId {
+            SocketService.shared.addItem(partyId: partyId, item: newItem)
+        }
         
         // Track analytics
         AnalyticsService.shared.track(.itemAdded(

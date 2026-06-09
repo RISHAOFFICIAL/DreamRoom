@@ -2,14 +2,17 @@ import SwiftUI
 
 struct DreamShopView: View {
     @StateObject var kitService = DreamKitService.shared
+    @StateObject var subService = SubscriptionService.shared
     @Environment(\.presentationMode) var presentationMode
     @State private var previewingKit: DreamKit?
+    @State private var selectedKit: DreamKit?
     @State private var showingPurchaseSuccess = false
+    @State private var showingSubscriptionSuccess = false
     
     var body: some View {
         ZStack {
             // Background
-            Color(red: 0.05, green: 0.05, blue: 0.08)
+            Color.dreamBackground
                 .edgesIgnoringSafeArea(.all)
             
             VStack(spacing: 0) {
@@ -21,30 +24,48 @@ struct DreamShopView: View {
                             .foregroundColor(.secondary)
                     }
                     Spacer()
-                    Text("Dream Shop")
-                        .font(.custom("CormorantGaramond-Bold", size: 28))
+                    Text("The Dream Shop")
+                        .font(.custom(DreamTheme.boldFontName, size: 28))
                         .foregroundColor(.gold)
                     Spacer()
-                    // Dummy space for balance
                     Image(systemName: "chevron.down").opacity(0)
                 }
                 .padding()
                 
                 ScrollView {
-                    VStack(spacing: 24) {
-                        Text("Enhance your vision with curated dream kits. Each kit unlocks cinematic assets and specialized textures.")
-                            .font(.custom("CormorantGaramond-MediumItalic", size: 18))
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
+                    VStack(spacing: 32) {
+                        // Builder Plan Promotion
+                        BuilderPlanCard(
+                            isPurchased: subService.currentLevel == .builder,
+                            isPurchasing: subService.isPurchasing
+                        ) {
+                            subService.purchaseBuilderPlan()
+                        }
                         
-                        ForEach(kitService.availableKits) { kit in
-                            KitCard(kit: kit) {
-                                previewingKit = kit
+                        VStack(spacing: 24) {
+                    HStack {
+                        Text("CURATED DREAM KITS")
+                            .font(.custom(DreamTheme.boldFontName, size: 24))
+                            .foregroundColor(.gold)
+                            .kerning(1.5)
+                        Spacer()
+                    }
+                    .padding(.horizontal)
+                    
+                    Text("Enhance your vision with curated dream kits. Each kit unlocks cinematic assets and specialized textures.")
+                        .font(.custom(DreamTheme.italicFontName, size: 18))
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.leading)
+                        .padding(.horizontal)
+                            
+                            ForEach(kitService.availableKits) { kit in
+                                KitCard(kit: kit) {
+                                    previewingKit = kit
+                                }
                             }
                         }
                     }
-                    .padding()
+                    .padding(.bottom, 40)
                 }
             }
             
@@ -69,7 +90,6 @@ struct DreamShopView: View {
                     withAnimation {
                         showingPurchaseSuccess = true
                     }
-                    // Dismiss success after 2 seconds
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                         withAnimation {
                             showingPurchaseSuccess = false
@@ -78,20 +98,125 @@ struct DreamShopView: View {
                 }
             }
             
-            if showingPurchaseSuccess {
-                VStack {
-                    Spacer()
-                    Text("Dream Unlocked")
-                        .font(.custom("CormorantGaramond-Bold", size: 24))
-                        .foregroundColor(.black)
-                        .padding()
-                        .background(Color.gold)
-                        .cornerRadius(12)
-                        .shadow(radius: 10)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                    Spacer().frame(height: 50)
+            if showingPurchaseSuccess || showingSubscriptionSuccess {
+                SuccessToast(message: showingSubscriptionSuccess ? "Builder Plan Active" : "Dream Unlocked")
+            }
+        }
+        .onChange(of: subService.currentLevel) { level in
+            if level == .builder {
+                withAnimation {
+                    showingSubscriptionSuccess = true
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    withAnimation {
+                        showingSubscriptionSuccess = false
+                    }
                 }
             }
+        }
+    }
+}
+
+struct BuilderPlanCard: View {
+    let isPurchased: Bool
+    let isPurchasing: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 20)
+                    .stroke(Color.gold, lineWidth: 2)
+                    .background(
+                        LinearGradient(
+                            gradient: Gradient(colors: [Color(red: 0.1, green: 0.09, blue: 0.15), Color.dreamBackground]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                        .cornerRadius(20)
+                    )
+                
+                VStack(spacing: 20) {
+                    HStack(alignment: .top) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("THE BUILDER PLAN")
+                                .font(.custom(DreamTheme.boldFontName, size: 28))
+                                .foregroundColor(.gold)
+                            
+                            Text("Become a Gathering Leader")
+                                .font(.custom(DreamTheme.italicFontName, size: 18))
+                                .foregroundColor(.white.opacity(0.8))
+                        }
+                        Spacer()
+                        
+                        VStack(alignment: .trailing, spacing: 0) {
+                            Text("$4.99")
+                                .font(.custom(DreamTheme.boldFontName, size: 42))
+                                .foregroundColor(.gold)
+                            Text("PER MONTH")
+                                .font(.custom(DreamTheme.boldFontName, size: 12))
+                                .foregroundColor(Color.sapphire)
+                        }
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 12) {
+                        BenefitRow(text: "• Host unlimited gatherings")
+                        BenefitRow(text: "• Exclusive luxury asset libraries")
+                        BenefitRow(text: "• High-resolution board exports")
+                    }
+                    
+                    Button(action: action) {
+                        HStack {
+                            if isPurchasing {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .dreamBackground))
+                                    .padding(.trailing, 8)
+                            }
+                            Text(isPurchased ? "ACTIVE MEMBER" : (isPurchasing ? "ACTIVATING..." : "UPGRADE NOW"))
+                                .font(.custom(DreamTheme.boldFontName, size: 18))
+                        }
+                        .foregroundColor(.dreamBackground)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(isPurchased ? Color.gold.opacity(0.5) : Color.gold)
+                        .cornerRadius(25)
+                    }
+                    .disabled(isPurchased || isPurchasing)
+                }
+                .padding(30)
+            }
+        }
+        .padding(.horizontal)
+    }
+}
+
+struct BenefitRow: View {
+    let text: String
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(text)
+                .font(.custom(DreamTheme.fontName, size: 14))
+                .foregroundColor(Color.sapphire)
+            Spacer()
+        }
+    }
+}
+
+struct SuccessToast: View {
+    let message: String
+    var body: some View {
+        VStack {
+            Spacer()
+            Text(message)
+                .font(.custom(DreamTheme.boldFontName, size: 24))
+                .foregroundColor(.black)
+                .padding(.vertical, 12)
+                .padding(.horizontal, 24)
+                .background(Color.gold)
+                .cornerRadius(30)
+                .shadow(color: .gold.opacity(0.3), radius: 20)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            Spacer().frame(height: 50)
         }
     }
 }
@@ -102,56 +227,74 @@ struct KitCard: View {
     
     var body: some View {
         Button(action: action) {
-            VStack(alignment: .leading, spacing: 12) {
-                ZStack(alignment: .bottomTrailing) {
-                    // Kit cover image or high-fidelity placeholder
-                    ZStack {
-                        Rectangle()
-                            .fill(LinearGradient(gradient: Gradient(colors: [Color(red: 0.15, green: 0.15, blue: 0.2), .black]), startPoint: .top, endPoint: .bottom))
-                        
-                        VStack {
-                            Image(systemName: "sparkles")
-                                .font(.system(size: 40))
-                                .foregroundColor(.gold.opacity(0.4))
-                            Text(kit.coverImageName)
-                                .font(.caption2)
-                                .foregroundColor(.gold.opacity(0.3))
+            VStack(alignment: .leading, spacing: 16) {
+                ZStack(alignment: .top) {
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(Color(red: 0.08, green: 0.07, blue: 0.13))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 20)
+                                .stroke(Color.sapphire.opacity(0.3), lineWidth: 0.5)
+                        )
+                    
+                    VStack(spacing: 0) {
+                        // Kit cover image placeholder
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Color(red: 0.15, green: 0.13, blue: 0.17))
+                            
+                            Text(kit.coverImageName.components(separatedBy: "/").first?.capitalized ?? "Dream")
+                                .font(.custom(DreamTheme.italicFontName, size: 24))
+                                .foregroundColor(.gold)
+                                .opacity(0.4)
                         }
-                    }
-                    .aspectRatio(16/9, contentMode: .fit)
-                    .cornerRadius(12)
-                    
-                    if kit.isPurchased {
-                        Text("UNLOCKED")
-                            .font(.caption2)
-                            .fontWeight(.bold)
-                            .padding(8)
-                            .background(Color.gold)
-                            .foregroundColor(.black)
-                            .cornerRadius(4)
-                            .padding(12)
-                    } else {
-                        Text(kit.price)
-                            .font(.system(size: 14, weight: .bold))
-                            .padding(8)
-                            .background(Color.black.opacity(0.8))
-                            .foregroundColor(.gold)
-                            .cornerRadius(4)
-                            .padding(12)
+                        .padding(20)
+                        .frame(height: 180)
+                        
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(kit.name)
+                                .font(.custom(DreamTheme.boldFontName, size: 20))
+                                .foregroundColor(.white)
+                            
+                            Text(kit.description)
+                                .font(.custom(DreamTheme.fontName, size: 14))
+                                .foregroundColor(Color.sapphire.opacity(0.8))
+                                .lineLimit(1)
+                            
+                            HStack {
+                                Text(kit.price)
+                                    .font(.custom(DreamTheme.boldFontName, size: 24))
+                                    .foregroundColor(.gold)
+                                
+                                Spacer()
+                                
+                                if kit.isPurchased {
+                                    Text("UNLOCKED")
+                                        .font(.custom(DreamTheme.boldFontName, size: 12))
+                                        .foregroundColor(.gold)
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 8)
+                                        .background(Color.gold.opacity(0.1))
+                                        .cornerRadius(20)
+                                } else {
+                                    Text("UNLOCK")
+                                        .font(.custom(DreamTheme.boldFontName, size: 12))
+                                        .foregroundColor(.gold)
+                                        .padding(.horizontal, 24)
+                                        .padding(.vertical, 10)
+                                        .background(Color.gold.opacity(0.1))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 20)
+                                                .stroke(Color.gold, lineWidth: 1)
+                                        )
+                                        .cornerRadius(20)
+                                }
+                            }
+                            .padding(.top, 10)
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 20)
                     }
                 }
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(kit.name)
-                        .font(.custom("CormorantGaramond-Bold", size: 22))
-                        .foregroundColor(.white)
-                    
-                    Text(kit.description)
-                        .font(.system(size: 14))
-                        .foregroundColor(.secondary)
-                        .lineLimit(2)
-                }
-                .padding(.horizontal, 4)
             }
         }
     }
@@ -170,7 +313,7 @@ struct PurchaseModal: View {
             
             VStack(spacing: 24) {
                 Text("Unlock Dream")
-                    .font(.custom("CormorantGaramond-Bold", size: 28))
+                    .font(.custom(DreamTheme.boldFontName, size: 28))
                     .foregroundColor(.gold)
                 
                 Text("Confirm your purchase of '\(kit.name)' to immediately unlock its premium assets for your vision boards.")
@@ -232,10 +375,10 @@ struct KitPreviewView: View {
                                             .font(.system(size: 80))
                                             .foregroundColor(.gold)
                                         Text("Soundscape Preview")
-                                            .font(.custom("CormorantGaramond-Bold", size: 24))
+                                            .font(.custom(DreamTheme.boldFontName, size: 24))
                                             .foregroundColor(.white)
                                         Text(kit.assets[index].replacingOccurrences(of: ".m4a", with: ""))
-                                            .font(.custom("CormorantGaramond-Italic", size: 18))
+                                            .font(.custom(DreamTheme.italicFontName, size: 18))
                                             .foregroundColor(.secondary)
                                         
                                         Button(action: { /* Play sound mock */ }) {
@@ -255,7 +398,7 @@ struct KitPreviewView: View {
                                             .font(.system(size: 60))
                                             .foregroundColor(.gold.opacity(0.3))
                                         Text("Preview: \(kit.assets[index])")
-                                            .font(.custom("CormorantGaramond-MediumItalic", size: 18))
+                                            .font(.custom(DreamTheme.italicFontName, size: 18))
                                             .foregroundColor(.gold.opacity(0.6))
                                     }
                                 }
@@ -273,7 +416,7 @@ struct KitPreviewView: View {
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(kit.name)
-                                .font(.custom("CormorantGaramond-Bold", size: 32))
+                                .font(.custom(DreamTheme.boldFontName, size: 32))
                                 .foregroundColor(.white)
                             Text("Asset \(currentAssetIndex + 1) of \(kit.assets.count)")
                                 .font(.caption)
@@ -281,13 +424,13 @@ struct KitPreviewView: View {
                         }
                         Spacer()
                         Text(kit.price)
-                            .font(.system(size: 24, weight: .light))
+                            .font(.custom(DreamTheme.boldFontName, size: 24))
                             .foregroundColor(.gold)
                     }
                     .padding(.horizontal)
                     
                     Text(kit.description)
-                        .font(.custom("CormorantGaramond-Regular", size: 18))
+                        .font(.custom(DreamTheme.italicFontName, size: 18))
                         .foregroundColor(.white.opacity(0.8))
                         .padding(.horizontal)
                     

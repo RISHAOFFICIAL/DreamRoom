@@ -25,7 +25,7 @@
     <!-- Main Cover Concept (Abstract placeholder for the feeling) -->
     <rect width=\"500\" height=\"300\" fill=\"#1A1721\" stroke=\"#E8C97A\" stroke-width=\"0.5\"/>
     <path d=\"M150 150 Q250 50 350 150 T450 150\" fill=\"none\" stroke=\"#E8C97A\" stroke-width=\"0.5\" opacity=\"0.3\"/>
-    <text x=\"250\" y=\"150\" font-family=\"Cormorant Garamond, serif\" font-size=\"24\" fill=\"#E8C97A\" text-anchor=\"middle\" opacity=\"0.4\" font-style=\"italic\">A Ritual Space for Reflection</text>
+    <text x=\"250\" y=\"150\" font-family=\"Cormorant Garamond, serif\" font-size=\"24\" fill=\"#E8C97A\" text-anchor=\"middle\" opacity=\"0.4\" font-style=\"italic\">A experience Space for Reflection</text>
     
     <!-- Thumbnail Assets -->
     <g transform=\"translate(0, 320)\">

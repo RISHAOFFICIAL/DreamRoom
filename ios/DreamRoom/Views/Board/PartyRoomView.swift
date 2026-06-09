@@ -1,53 +1,8 @@
 import SwiftUI
 
-struct GoldenHourModifier: ViewModifier {
-    var active: Bool
-    @State private var shimmerOffset: CGFloat = -500
-    
-    func body(content: Content) {
-        content
-            .overlay(
-                active ? 
-                LinearGradient(
-                    gradient: Gradient(colors: [.clear, .white.opacity(0.4), .clear]),
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .rotationEffect(.degrees(30))
-                .offset(x: shimmerOffset)
-                .mask(content)
-                : nil
-            )
-            .foregroundColor(active ? .gold : .primary)
-            .accentColor(active ? .gold : .blue)
-            .shadow(color: active ? .gold.opacity(0.3) : .clear, radius: 10)
-            .onAppear {
-                if active {
-                    withAnimation(Animation.linear(duration: 2.5).repeatForever(autoreverses: false)) {
-                        shimmerOffset = 500
-                    }
-                }
-            }
-            .onChange(of: active) { newValue in
-                if newValue {
-                    withAnimation(Animation.linear(duration: 2.5).repeatForever(autoreverses: false)) {
-                        shimmerOffset = 500
-                    }
-                } else {
-                    shimmerOffset = -500
-                }
-            }
-    }
-}
-
-extension View {
-    func goldenHour(active: Bool) -> some View {
-        self.modifier(GoldenHourModifier(active: active))
-    }
-}
-
 struct PartyRoomView: View {
     @StateObject var viewModel: PartyViewModel
+    @StateObject var boardViewModel = BoardViewModel.shared
     @Environment(\.presentationMode) var presentationMode
     
     init(partyId: String = "test-party-123") {
@@ -57,10 +12,9 @@ struct PartyRoomView: View {
     var body: some View {
         ZStack {
             // Dark luxury background
-            Color(red: 0.05, green: 0.05, blue: 0.08)
-                .edgesIgnoringSafeArea(.all)
+            GoldenHourBackground(active: viewModel.isGoldenHour)
             
-            VStack {
+            VStack(spacing: 0) {
                 // Header
                 HStack {
                     Button(action: { presentationMode.wrappedValue.dismiss() }) {
@@ -74,7 +28,7 @@ struct PartyRoomView: View {
                         .goldenHour(active: viewModel.isGoldenHour)
                     Spacer()
                     // Host controls
-                    if viewModel.isHost || true { // For demo
+                    if viewModel.isHost || true {
                         HStack(spacing: 12) {
                             Button(action: {
                                 withAnimation {
@@ -100,50 +54,46 @@ struct PartyRoomView: View {
                 }
                 .padding()
                 
-                Spacer()
-                
-                // Participants
+                // Participants (The Target for Flick)
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 20) {
                         ForEach(viewModel.participants) { participant in
-                            VStack {
-                                ZStack {
-                                    Circle()
-                                        .stroke(participant.isBuilding ? Color.gold : Color.secondary, lineWidth: 2)
-                                        .frame(width: 64, height: 64)
-                                    
-                                    Image(systemName: "person.fill")
-                                        .resizable()
-                                        .padding(15)
-                                        .frame(width: 60, height: 60)
-                                        .background(Color.gray.opacity(0.3))
-                                        .clipShape(Circle())
-                                    
-                                    if participant.isBuilding {
-                                        Circle()
-                                            .fill(Color.gold)
-                                            .frame(width: 12, height: 12)
-                                            .offset(x: 22, y: -22)
-                                    }
-                                }
-                                Text(participant.name)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
+                            ParticipantAvatarView(participant: participant, isGoldenHour: viewModel.isGoldenHour)
                         }
                     }
-                    .padding()
+                    .padding(.horizontal)
+                    .padding(.bottom, 10)
                 }
+                .background(Color.black.opacity(0.2))
                 
-                if viewModel.status == .revealCountdown {
-                    Text("\(viewModel.countdown)")
-                        .font(.custom("CormorantGaramond-Bold", size: 120))
-                        .foregroundColor(.gold)
-                        .transition(.scale)
+                // Board Canvas
+                ZStack {
+                    BoardCanvasView(
+                        viewModel: boardViewModel,
+                        isPartyMode: true,
+                        activePartyId: viewModel.partyId,
+                        isGoldenHour: viewModel.isGoldenHour
+                    )
+                    
+                    if viewModel.status == .revealCountdown {
+                        Text("\(viewModel.countdown)")
+                            .font(.custom("CormorantGaramond-Bold", size: 120))
+                            .foregroundColor(.gold)
+                            .transition(.scale)
+                    }
                 }
-                
-                Spacer()
+                .clipped()
             }
+            
+            // Spark Feed Overlay
+            VStack {
+                Spacer()
+                HStack {
+                    GoldenSparkFeedView(sparks: viewModel.sparks)
+                    Spacer()
+                }
+            }
+            .allowsHitTesting(false)
             
             if viewModel.status == .revealing {
                 RevealSequenceView(
@@ -158,3 +108,36 @@ struct PartyRoomView: View {
     }
 }
 
+struct ParticipantAvatarView: View {
+    let participant: Participant
+    var isGoldenHour: Bool = false
+    
+    var body: some View {
+        VStack {
+            ZStack {
+                Circle()
+                    .stroke(participant.isBuilding ? Color.gold : (isGoldenHour ? Color.gold.opacity(0.3) : Color.sapphire.opacity(0.5)), lineWidth: 2)
+                    .frame(width: 60, height: 60)
+                
+                Image(systemName: "person.fill")
+                    .resizable()
+                    .padding(12)
+                    .frame(width: 56, height: 60)
+                    .background(Color.gray.opacity(0.1))
+                    .clipShape(Circle())
+                    .shadow(color: isGoldenHour ? .gold.opacity(0.4) : .clear, radius: 5)
+                
+                if participant.isBuilding {
+                    Circle()
+                        .fill(Color.gold)
+                        .frame(width: 10, height: 10)
+                        .offset(x: 20, y: -20)
+                        .shadow(color: .gold.opacity(0.8), radius: 4)
+                }
+            }
+            Text(participant.name)
+                .font(.custom("CormorantGaramond-Regular", size: 12))
+                .goldenHour(active: isGoldenHour)
+        }
+    }
+}

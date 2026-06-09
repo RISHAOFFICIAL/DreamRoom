@@ -98,7 +98,7 @@ const AdminDashboard: React.FC = () => {
                     </div>
                     {party.isGoldenHour && (
                       <div className="flex items-center gap-1 text-[#E8C97A] text-[10px] font-bold animate-pulse">
-                        <Zap className="w-3 h-3 fill-current" /> GOLDEN
+                        <Zap className="w-3 h-3 fill-current" /> GOLDEN {party.isManualGoldenHour && '(MANUAL)'}
                       </div>
                     )}
                   </div>

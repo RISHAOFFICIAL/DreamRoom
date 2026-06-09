@@ -5,6 +5,7 @@ class DreamKitService: ObservableObject {
     static let shared = DreamKitService()
     
     @Published var availableKits: [DreamKit] = []
+    @Published var isBuilderHosted: Bool = false
     
     private let storageKey = "dreamroom.purchasedKits"
     
@@ -81,28 +82,51 @@ class DreamKitService: ObservableObject {
     }
     
     func purchaseKit(kitId: String) {
-        if let index = availableKits.firstIndex(where: { $0.id == kitId }) {
-            // Simulate purchase logic
-            availableKits[index].isPurchased = true
-            savePurchase(kitId: availableKits[index].id)
-            
-            // Track analytics
-            AnalyticsService.shared.track(.kitPurchased(kitId: kitId, name: availableKits[index].name))
+        StoreKitService.shared.purchase(productIdentifier: kitId) { [weak self] success in
+            if success {
+                DispatchQueue.main.async {
+                    if let index = self?.availableKits.firstIndex(where: { $0.id == kitId }) {
+                        self?.availableKits[index].isPurchased = true
+                        self?.savePurchase(kitId: kitId)
+                        
+                        // Track analytics
+                        AnalyticsService.shared.track(.kitPurchased(kitId: kitId, name: self?.availableKits[index].name ?? "Unknown"))
+                    }
+                }
+            }
         }
     }
     
     private func savePurchase(kitId: String) {
+        // Already handled by StoreKitService in our mock, but let's keep internal state synced
         var purchased = getPurchasedKitIds()
         purchased.insert(kitId)
         UserDefaults.standard.set(Array(purchased), forKey: storageKey)
     }
     
     private func getPurchasedKitIds() -> Set<String> {
-        let array = UserDefaults.standard.stringArray(forKey: storageKey) ?? []
-        return Set(array)
+        return StoreKitService.shared.purchasedProductIdentifiers.union(
+            Set(UserDefaults.standard.stringArray(forKey: storageKey) ?? [])
+        )
     }
     
     func getUnlockedAssets() -> [String] {
         return availableKits.filter { $0.isPurchased }.flatMap { $0.assets }
+    }
+    
+    func isAssetUnlocked(assetName: String) -> Bool {
+        // Builder Plan unlocks all luxury assets
+        if SubscriptionService.shared.currentLevel == .builder || isBuilderHosted {
+            return true
+        }
+        
+        // If it's not a kit asset, it's unlocked (free/user uploaded)
+        let allKitAssets = availableKits.flatMap { $0.assets }
+        if !allKitAssets.contains(assetName) {
+            return true
+        }
+        
+        // If it is a kit asset, check if that kit is purchased
+        return availableKits.contains(where: { $0.isPurchased && $0.assets.contains(assetName) })
     }
 }

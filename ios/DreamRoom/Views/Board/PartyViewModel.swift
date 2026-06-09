@@ -22,8 +22,10 @@ class PartyViewModel: ObservableObject {
     @Published var status: PartyStatus = .building
     @Published var countdown: Int = 10
     @Published var isGoldenHour: Bool = false
+    @Published var isBuilderHosted: Bool = false
     @Published var isHost: Bool = false
     @Published var partyId: String = ""
+    @Published var sparks: [GoldenSpark] = []
     
     private var cancellables = Set<AnyCancellable>()
     private let socketService = SocketService.shared
@@ -58,6 +60,10 @@ class PartyViewModel: ObservableObject {
                 self?.partyId = partyData.id
                 self?.participants = partyData.participants
                 self?.isGoldenHour = partyData.isGoldenHour
+                self?.isBuilderHosted = partyData.isBuilderHosted
+                DreamKitService.shared.isBuilderHosted = partyData.isBuilderHosted
+                BoardViewModel.shared.activePartyId = partyData.id
+                self?.sparks = partyData.sparks
                 
                 // Update status if needed
                 if partyData.status == "reveal" && self?.status == .building {
@@ -89,6 +95,22 @@ class PartyViewModel: ObservableObject {
             }
             .store(in: &cancellables)
             
+        socketService.itemWitnessed
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] witnessData in
+                // Add spark to local history for immediate feedback
+                withAnimation {
+                    self?.sparks.append(witnessData.spark)
+                }
+                
+                // If it's for our item, maybe show a special animation or sound
+                // (Logic can be added here)
+                if self?.isGoldenHour ?? false {
+                    SoundService.shared.play(name: "gold-spark")
+                }
+            }
+            .store(in: &cancellables)
+            
         socketService.errorReceived
             .receive(on: DispatchQueue.main)
             .sink { message in
@@ -115,6 +137,13 @@ class PartyViewModel: ObservableObject {
         socketService.toggleGoldenHour(partyId: partyId, enabled: !isGoldenHour)
     }
     
+    func witnessItem(itemId: UUID) {
+        socketService.witnessItem(partyId: partyId, itemId: itemId)
+        if isGoldenHour {
+            SoundService.shared.play(name: "gold-spark")
+        }
+    }
+    
     private func startInternalCountdown() {
         Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
             if self.countdown > 0 {
@@ -126,6 +155,6 @@ class PartyViewModel: ObservableObject {
     }
     
     func updateBuildingState(isBuilding: Bool) {
-        socketService.updateBuildingState(partyId: partyId, isBuilding: isBuilding)
+        socketService.sendBuildingState(partyId: partyId, isBuilding: isBuilding)
     }
 }

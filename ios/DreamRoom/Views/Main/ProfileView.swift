@@ -4,6 +4,8 @@ struct ProfileView: View {
     @StateObject var viewModel = ProfileViewModel()
     @State private var isEditing = false
     
+    @State private var showingRecall = false
+    
     var body: some View {
         NavigationView {
             VStack(spacing: 20) {
@@ -32,10 +34,10 @@ struct ProfileView: View {
                         .padding(.horizontal)
                 } else {
                     Text(viewModel.userProfile.name)
-                        .font(.custom("CormorantGaramond-Bold", size: 28))
+                        .font(.custom(DreamTheme.boldFontName, size: 28))
                     
                     Text(viewModel.userProfile.bio)
-                        .font(.custom("CormorantGaramond-Italic", size: 18))
+                        .font(.custom(DreamTheme.italicFontName, size: 18))
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
@@ -44,6 +46,29 @@ struct ProfileView: View {
                 Spacer()
                 
                 VStack(spacing: 12) {
+                    Button(action: { showingRecall = true }) {
+                        HStack {
+                            Image(systemName: "play.rectangle.fill")
+                            VStack(alignment: .leading) {
+                                Text("Watch Dream Recall")
+                                    .font(.headline)
+                                Text("The First Spark")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                        }
+                        .padding()
+                        .background(Color.gold.opacity(0.1))
+                        .cornerRadius(12)
+                        .foregroundColor(.gold)
+                    }
+                    .padding(.horizontal)
+                    .fullScreenCover(isPresented: $showingRecall) {
+                        RecallView(viewModel: RecallViewModel(items: BoardViewModel.shared.items, milestone: .nextDay))
+                    }
+                    
                     NavigationLink(destination: DreamShopView()) {
                         HStack {
                             Image(systemName: "sparkles")

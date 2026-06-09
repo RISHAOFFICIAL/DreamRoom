@@ -99,7 +99,7 @@ function App() {
           onClick={() => setShowShop(false)}
           className="fixed top-8 left-8 z-50 flex items-center gap-2 bg-[#1A1822] text-[#E8C97A] px-4 py-2 rounded-full border border-[#2D2A37] hover:bg-[#2D2A37] transition-all"
         >
-          <ArrowLeft className="w-4 h-4" /> Back to Ritual
+          <ArrowLeft className="w-4 h-4" /> Back to Gathering
         </button>
         <DreamShop userId={userId} />
       </div>

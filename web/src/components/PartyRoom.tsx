@@ -46,11 +46,19 @@ const PartyRoom: React.FC<Props> = ({ party, userName }) => {
         <div className="flex items-center gap-6">
           {isHost && (
             <button 
+<<<<<<< HEAD
               onClick={() => setShowAnalytics(true)}
               className="flex items-center gap-2 text-[#E8C97A]/60 hover:text-[#E8C97A] transition-colors text-sm uppercase tracking-widest font-bold"
             >
               <BarChart3 className="w-4 h-4" />
               Insights
+=======
+              onClick={() => setShowAnalytics(!showAnalytics)}
+              className={`p-2 rounded-lg transition-colors ${showAnalytics ? 'bg-[#E8C97A] text-black' : 'text-[#E8C97A] hover:bg-[#E8C97A]/10'}`}
+              title="Host Analytics"
+            >
+              <BarChart3 className="w-5 h-5" />
+>>>>>>> bbaf5ab (Implement Entitlements System and Host Analytics Dashboard)
             </button>
           )}
           <div className="flex items-center gap-2 text-[#5E8FA7]">
@@ -71,6 +79,17 @@ const PartyRoom: React.FC<Props> = ({ party, userName }) => {
       <main className="p-8 max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-8">
         {/* Collective Activity Sidebar */}
         <div className="lg:col-span-1 space-y-6">
+          {isHost && showAnalytics && (
+            <motion.div 
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              className="space-y-6"
+            >
+              <HostAnalytics party={party} />
+              <div className="border-t border-[#E8C97A]/10 pt-6" />
+            </motion.div>
+          )}
+
           <div className={`p-6 rounded-2xl border transition-all duration-1000 ${party.isGoldenHour ? 'bg-[#2a220a] border-[#E8C97A]/40 shadow-[0_0_20px_rgba(232,201,122,0.1)]' : 'bg-[#16141D] border-[#E8C97A]/10'}`}>
             <h3 className="text-[#E8C97A] uppercase tracking-widest text-xs font-bold mb-4 flex items-center gap-2">
                Participants {party.isGoldenHour && <Flame className="w-3 h-3 fill-current" />}

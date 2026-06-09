@@ -1,144 +1,12 @@
 import SwiftUI
-
-struct BoardItemView: View {
-    @Binding var item: BoardItem
-    var onDragStarted: () -> Void
-    var onDragEnded: (CGPoint) -> Void
-    var onDelete: () -> Void
-    
-    @State private var dragOffset: CGSize = .zero
-    @State private var currentScale: CGFloat = 1.0
-    @State private var currentRotation: Angle = .zero
-    @State private var isDragging: Bool = false
-    
-    // Flick to delete state
-    @State private var flickVelocity: CGSize = .zero
-    @State private var flickRotation: Angle = .zero
-    
-    var body: some View {
-        ZStack {
-            if let imageUrl = item.imageUrl {
-                if imageUrl.hasPrefix("http") {
-                    AsyncImage(url: URL(string: imageUrl)) { image in
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                    } placeholder: {
-                        ProgressView()
-                            .frame(width: 200, height: 200)
-                            .background(Color.gray.opacity(0.3))
-                    }
-                    .frame(width: 200, height: 200)
-                    .cornerRadius(12)
-                } else {
-                    // Dream Kit Premium Asset (Mock representation)
-                    ZStack {
-                        Rectangle()
-                            .fill(LinearGradient(gradient: Gradient(colors: [.gold.opacity(0.5), .black.opacity(0.3)]), startPoint: .topLeading, endPoint: .bottomTrailing))
-                        
-                        VStack {
-                            Image(systemName: "sparkles")
-                                .font(.title)
-                                .foregroundColor(.gold)
-                            Text(imageUrl)
-                                .font(.custom("CormorantGaramond-Bold", size: 16))
-                                .foregroundColor(.white)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal)
-                        }
-                    }
-                    .frame(width: 200, height: 200)
-                    .cornerRadius(12)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.gold.opacity(0.5), lineWidth: 1)
-                    )
-                }
-            } else if let text = item.text {
-                Text(text)
-                    .font(.custom("CormorantGaramond-Medium", size: 24))
-                    .padding()
-                    .background(Color.white)
-                    .cornerRadius(8)
-                    .shadow(radius: 2)
-            }
-        }
-        .scaleEffect(item.scale * currentScale * (isDragging ? 1.15 : 1.0))
-        .rotationEffect(item.rotation + currentRotation + flickRotation)
-        .offset(x: item.position.x + dragOffset.width, y: item.position.y + dragOffset.height)
-        .shadow(color: Color.black.opacity(isDragging ? 0.4 : 0.1), radius: isDragging ? 20 : 5, x: 0, y: isDragging ? 15 : 2)
-        .gesture(
-            DragGesture()
-                .onChanged { value in
-                    if !isDragging {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                            isDragging = true
-                        }
-                        onDragStarted()
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    }
-                    dragOffset = value.translation
-                }
-                .onEnded { value in
-                    let finalPosition = CGPoint(
-                        x: item.position.x + value.translation.width,
-                        y: item.position.y + value.translation.height
-                    )
-                    
-                    // Check for flick velocity to delete
-                    let velocity = value.predictedEndTranslation
-                    let magnitude = sqrt(pow(velocity.width, 2) + pow(velocity.height, 2))
-                    
-                    if magnitude > 1000 {
-                        UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
-                        withAnimation(.interpolatingSpring(stiffness: 50, damping: 10)) {
-                            flickRotation = Angle(degrees: Double.random(in: 720...1440))
-                            dragOffset = CGSize(width: velocity.width * 3, height: velocity.height * 3)
-                        }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            onDelete()
-                        }
-                    } else {
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.65, blendDuration: 0)) {
-                            item.position = finalPosition
-                            dragOffset = .zero
-                            isDragging = false
-                        }
-                        onDragEnded(finalPosition)
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                        SoundService.shared.play(name: "soft-settle", randomizePitch: true)
-                    }
-                }
-        )
-        .simultaneousGesture(
-            MagnificationGesture()
-                .onChanged { value in
-                    currentScale = value
-                }
-                .onEnded { value in
-                    item.scale *= value
-                    currentScale = 1.0
-                }
-        )
-        .simultaneousGesture(
-            RotationGesture()
-                .onChanged { value in
-                    currentRotation = value
-                }
-                .onEnded { value in
-                    item.rotation += value
-                    currentRotation = .zero
-                }
-        )
-    }
-}
-
 struct BoardView: View {
     @StateObject var viewModel = BoardViewModel.shared
     @State private var showingSettings = false
     @State private var showingPartyRoom = false
     @State private var showingShop = false
     @State private var showingScanner = false
+    @State private var showingRecall = false
+    @State private var selectedRecallItem: BoardItem?
     @State private var activePartyId = "test-party-123"
     
     var body: some View {
@@ -156,17 +24,22 @@ struct BoardView: View {
             ForEach($viewModel.items) { $item in
                 BoardItemView(
                     item: $item,
+                    isPartyMode: false,
+                    isGoldenHour: false,
                     onDragStarted: {
                         viewModel.bringToFront(id: item.id)
                         // Notify party of active building
-                        SocketService.shared.sendBuildingState(partyId: "test-party-123", userId: UUID().uuidString, isBuilding: true)
+                        SocketService.shared.sendBuildingState(partyId: "test-party-123", isBuilding: true)
                     },
                     onDragEnded: { _ in
                         // Notify party building stopped
-                        SocketService.shared.sendBuildingState(partyId: "test-party-123", userId: UUID().uuidString, isBuilding: false)
+                        SocketService.shared.sendBuildingState(partyId: "test-party-123", isBuilding: false)
                     },
                     onDelete: {
                         viewModel.removeItem(id: item.id)
+                    },
+                    onFlickToFriend: { asset in
+                        // Personal board doesn't flick to friend in this view
                     }
                 )
                 .zIndex(item.zIndex)
@@ -226,6 +99,16 @@ struct BoardView: View {
                         }
                         .padding()
                         
+                        Button(action: {
+                            WallpaperService.shared.exportBoardToWallpaper(items: viewModel.items, boardTitle: viewModel.boardTitle)
+                        }) {
+                            Image(systemName: "iphone")
+                                .resizable()
+                                .frame(width: 18, height: 26)
+                                .foregroundColor(.gold)
+                        }
+                        .padding()
+                        
                         Spacer()
                         
                         Button(action: {
@@ -252,6 +135,19 @@ struct BoardView: View {
         }
         .fullScreenCover(isPresented: $showingShop) {
             DreamShopView()
+        }
+        .fullScreenCover(isPresented: $showingRecall) {
+            if let items = [selectedRecallItem].compactMap({ $0 }) {
+                RecallView(viewModel: RecallViewModel(items: items, milestone: .nextDay))
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .didReceiveDeepLink)) { notification in
+            if let itemId = notification.userInfo?["itemId"] as? UUID {
+                if let item = viewModel.items.first(where: { $0.id == itemId }) {
+                    selectedRecallItem = item
+                    showingRecall = true
+                }
+            }
         }
         .sheet(isPresented: $showingScanner) {
             QRCodeScannerView(onScan: { code in
@@ -325,8 +221,4 @@ struct BoardView: View {
             AnalyticsService.shared.track(.partyJoined(partyId: UUID(), guestId: UUID(), method: "manual_entry"))
         }
     }
-}
-
-extension Color {
-    static let gold = Color(red: 0.91, green: 0.79, blue: 0.48)
 }

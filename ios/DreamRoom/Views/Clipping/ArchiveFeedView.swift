@@ -21,7 +21,7 @@ struct ArchiveFeedView: View {
                 if !premiumAssets.isEmpty {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Unlocked Dream Assets")
-                            .font(.custom("CormorantGaramond-Bold", size: 22))
+                            .font(.custom(DreamTheme.boldFontName, size: 22))
                             .padding(.horizontal)
                         
                         ScrollView(.horizontal, showsIndicators: false) {
@@ -39,7 +39,7 @@ struct ArchiveFeedView: View {
                 
                 VStack(alignment: .leading, spacing: 12) {
                     Text("The Archive")
-                        .font(.custom("CormorantGaramond-Bold", size: 22))
+                        .font(.custom(DreamTheme.boldFontName, size: 22))
                         .padding(.horizontal)
                     
                     LazyVGrid(columns: columns, spacing: 16) {

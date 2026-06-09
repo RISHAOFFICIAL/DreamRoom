@@ -9,6 +9,8 @@ struct BoardItem: Identifiable, Codable, Equatable {
     var position: CGPoint
     var rotation: Angle
     var scale: CGFloat
+    var witnesses: [String] = []
+    var hasWitnessSeal: Bool { !witnesses.isEmpty }
     
     // For tactile interaction states
     var zIndex: Double = 0
@@ -19,20 +21,22 @@ struct BoardItem: Identifiable, Codable, Equatable {
         lhs.text == rhs.text &&
         lhs.position == rhs.position &&
         lhs.rotation == rhs.rotation &&
-        lhs.scale == rhs.scale
+        lhs.scale == rhs.scale &&
+        lhs.witnesses == rhs.witnesses
     }
     
-    init(id: UUID = UUID(), imageUrl: String? = nil, text: String? = nil, position: CGPoint = .zero, rotation: Angle = .zero, scale: CGFloat = 1.0) {
+    init(id: UUID = UUID(), imageUrl: String? = nil, text: String? = nil, position: CGPoint = .zero, rotation: Angle = .zero, scale: CGFloat = 1.0, witnesses: [String] = []) {
         self.id = id
         self.imageUrl = imageUrl
         self.text = text
         self.position = position
         self.rotation = rotation
         self.scale = scale
+        self.witnesses = witnesses
     }
     
     enum CodingKeys: String, CodingKey {
-        case id, imageUrl, text, position, rotation, scale
+        case id, imageUrl = "url", text, position = "x", rotation, scale, witnesses
     }
 }
 
